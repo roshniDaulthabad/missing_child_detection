@@ -21,6 +21,26 @@ def create_app(config_class=Config):
         # Create database tables
         db.create_all()
 
+        # Migrate alerts table if AI verification columns are missing
+        try:
+            from sqlalchemy import inspect, text
+            inspector = inspect(db.engine)
+            if "alerts" in inspector.get_table_names():
+                existing_columns = [col["name"] for col in inspector.get_columns("alerts")]
+                columns_to_add = [
+                    ("ai_status", "VARCHAR(50) DEFAULT 'Pending'"),
+                    ("ai_confidence", "VARCHAR(30) DEFAULT 'N/A'"),
+                    ("ai_assessment", "TEXT"),
+                    ("ai_recommendation", "TEXT"),
+                ]
+                with db.engine.connect() as conn:
+                    for col_name, col_type in columns_to_add:
+                        if col_name not in existing_columns:
+                            conn.execute(text(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}"))
+                    conn.commit()
+        except Exception as e:
+            print(f"[DB MIGRATION] Schema check warning: {e}")
+
         # Seed initial authorized cameras if empty
         if Camera.query.count() == 0:
             default_cameras = [

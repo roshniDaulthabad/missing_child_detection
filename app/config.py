@@ -82,6 +82,11 @@ class Config:
     # Demo Mode
     DEMO_MODE = os.getenv("DEMO_MODE", "True").lower() in ("true", "1", "yes")
 
+    # Featherless.ai LLM Integration
+    FEATHERLESS_API_KEY = os.getenv("FEATHERLESS_API_KEY", "")
+    FEATHERLESS_BASE_URL = os.getenv("FEATHERLESS_BASE_URL", "https://api.featherless.ai/v1")
+    FEATHERLESS_MODEL = os.getenv("FEATHERLESS_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+
     @classmethod
     def get_active_mode_settings(cls):
         mode = cls.OPERATION_MODE if cls.OPERATION_MODE in cls.MODE_SETTINGS else "BALANCED"

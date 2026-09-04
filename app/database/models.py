@@ -131,6 +131,11 @@ class PotentialMatchAlert(db.Model):
     review_notes = db.Column(db.Text, nullable=True)
     reviewed_by = db.Column(db.String(120), nullable=True)
     reviewed_at = db.Column(db.DateTime, nullable=True)
+    # Featherless.ai Verification Assessment
+    ai_status = db.Column(db.String(50), default="Pending")
+    ai_confidence = db.Column(db.String(30), default="N/A")
+    ai_assessment = db.Column(db.Text, nullable=True)
+    ai_recommendation = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 

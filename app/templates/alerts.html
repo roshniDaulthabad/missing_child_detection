@@ -5,10 +5,15 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="fw-bold mb-1">Potential Match Verification Portal</h4>
-        <p class="text-muted small mb-0">Authorized Biometric Review & Officer In-the-Loop Confirmation</p>
+        <p class="text-muted small mb-0">Biometric Surveillance Verification & Featherless AI Assisted Evaluation</p>
     </div>
-    <div>
-        <span class="badge bg-warning text-dark"><i class="fa-solid fa-lock me-1"></i> Officer Decision Required</span>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-dark text-info border border-info px-2 py-1">
+            <i class="fa-solid fa-robot me-1"></i> Featherless.ai Active
+        </span>
+        <span class="badge bg-warning text-dark px-2 py-1">
+            <i class="fa-solid fa-lock me-1"></i> Officer Decision Required
+        </span>
     </div>
 </div>
 
@@ -37,8 +42,8 @@
                         <div class="text-center mb-3">
                             <span class="badge bg-primary px-3 py-2 fs-6">REGISTERED PRIMARY REFERENCE</span>
                         </div>
-                        <div class="text-center bg-black p-2 rounded mb-3" style="min-height: 280px;">
-                            <img id="modalRefImg" src="" class="img-fluid rounded" style="max-height: 260px;" alt="Registered Photo">
+                        <div class="text-center bg-black p-2 rounded mb-3" style="min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                            <img id="modalRefImg" src="" class="img-fluid rounded" style="max-height: 260px; object-fit: contain;" alt="Registered Photo">
                         </div>
                         <div class="stat-card">
                             <div class="small text-muted">Case ID: <strong class="text-white" id="modalCaseId">--</strong></div>
@@ -75,8 +80,54 @@
                     </div>
                 </div>
 
+                <!-- Featherless AI Forensic Assessment Card -->
+                <div class="card bg-black border-info mt-4 mb-3">
+                    <div class="card-header bg-dark border-info d-flex justify-content-between align-items-center py-2">
+                        <div class="d-flex align-items-center">
+                            <i class="fa-solid fa-robot text-info fs-5 me-2"></i>
+                            <div>
+                                <strong class="text-white">Featherless.ai Forensic Assessment</strong>
+                                <span class="badge bg-primary ms-2" style="font-size: 0.72rem;">Mistral-7B-Instruct</span>
+                            </div>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-sm btn-outline-info" id="btnReverifyAi" onclick="reverifyCurrentAlertAi()">
+                                <i class="fa-solid fa-arrows-rotate me-1" id="reverifyIcon"></i> Re-Analyze with AI
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-3">
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-6">
+                                <span class="text-muted small">AI Verification Verdict:</span>
+                                <span class="badge px-2 py-1 ms-1 fs-6" id="modalAiStatusBadge">--</span>
+                            </div>
+                            <div class="col-sm-6">
+                                <span class="text-muted small">Biometric Alignment:</span>
+                                <strong class="text-info ms-1" id="modalAiConfidence">--</strong>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="text-muted small fw-bold mb-1">
+                                <i class="fa-solid fa-brain text-info me-1"></i> Forensic AI Reasoning & Context Analysis:
+                            </div>
+                            <div class="p-2 rounded bg-dark text-light small border border-secondary" id="modalAiReasoning" style="min-height: 48px; line-height: 1.5;">
+                                --
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-muted small fw-bold mb-1">
+                                <i class="fa-solid fa-shield-halved text-warning me-1"></i> Operational Recommendation for Officer:
+                            </div>
+                            <div class="p-2 rounded bg-dark text-warning small border border-secondary" id="modalAiRecommendation" style="min-height: 40px; line-height: 1.5;">
+                                --
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Review Form -->
-                <div class="mt-4 pt-3 border-top border-secondary">
+                <div class="mt-3 pt-3 border-top border-secondary">
                     <label class="form-label text-muted small">Investigating Officer Verification Notes:</label>
                     <textarea class="form-control bg-black text-light border-secondary mb-3" id="officerNotes" rows="2" placeholder="Record visual alignment notes, clothing consistency, or dispatch instructions..."></textarea>
                     
@@ -102,11 +153,29 @@
 <script>
     let activeReviewAlertId = null;
     let reviewModal = null;
+    let alertsMap = {};
+    let currentAlertForModal = null;
 
     document.addEventListener("DOMContentLoaded", () => {
         reviewModal = new bootstrap.Modal(document.getElementById('reviewModal'));
         loadAlerts();
     });
+
+    function getAiBadgeClass(status) {
+        if (!status) return 'bg-secondary';
+        const s = status.toLowerCase();
+        if (s.includes('likely')) return 'bg-success';
+        if (s.includes('possible')) return 'bg-info text-dark';
+        if (s.includes('inconclusive') || s.includes('review')) return 'bg-warning text-dark';
+        if (s.includes('offline') || s.includes('fallback')) return 'bg-secondary';
+        return 'bg-primary';
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        const map = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'};
+        return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
 
     async function loadAlerts() {
         try {
@@ -114,6 +183,9 @@
             const container = document.getElementById('alertsContainer');
             if (res.ok) {
                 const alerts = await res.json();
+                alertsMap = {};
+                alerts.forEach(a => { alertsMap[a.alert_id] = a; });
+
                 if (alerts.length === 0) {
                     container.innerHTML = `
                         <div class="col-12 text-center text-muted py-5">
@@ -130,11 +202,12 @@
                     <div class="col-md-6 col-lg-4">
                         <div class="stat-card h-100 border-start border-4 ${a.status === 'Confirmed by Officer' ? 'border-success' : 'border-warning'}">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <span class="badge bg-secondary">${a.alert_id}</span>
+                                <span class="badge bg-secondary">${escapeHtml(a.alert_id)}</span>
                                 <span class="badge ${a.status === 'Confirmed by Officer' ? 'bg-success' : (a.status === 'Rejected' ? 'bg-danger' : 'badge-potential')}">
-                                    ${a.status}
+                                    ${escapeHtml(a.status)}
                                 </span>
                             </div>
+
                             <div class="d-flex gap-2 my-3">
                                 <div class="w-50 text-center bg-black p-1 rounded">
                                     <small class="text-muted d-block" style="font-size: 0.65rem;">CASE PHOTO</small>
@@ -145,11 +218,26 @@
                                     <img src="${a.face_url}" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: contain;">
                                 </div>
                             </div>
-                            <div class="small mb-1"><span class="text-muted">Child:</span> <strong class="text-white">${a.child_name || a.case_id}</strong> <small class="text-muted">(${a.case_id})</small></div>
+
+                            <div class="small mb-1"><span class="text-muted">Child:</span> <strong class="text-white">${escapeHtml(a.child_name || a.case_id)}</strong> <small class="text-muted">(${escapeHtml(a.case_id)})</small></div>
                             <div class="small mb-1"><span class="text-muted">Similarity:</span> <span class="fw-bold text-warning">${a.similarity_score}%</span></div>
-                            <div class="small mb-1"><span class="text-muted">Location:</span> ${a.camera_location}</div>
-                            <div class="small mb-3"><span class="text-muted">Time:</span> ${a.timestamp}</div>
-                            <button class="btn btn-sm btn-outline-primary w-100" onclick='openReviewModal(${JSON.stringify(a)})'>
+                            <div class="small mb-1"><span class="text-muted">Location:</span> ${escapeHtml(a.camera_location)}</div>
+                            <div class="small mb-2"><span class="text-muted">Time:</span> ${escapeHtml(a.timestamp)}</div>
+
+                            <!-- Featherless AI Verification Card Preview -->
+                            <div class="p-2 mb-3 rounded bg-black border border-secondary">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="badge ${getAiBadgeClass(a.ai_status)}">
+                                        <i class="fa-solid fa-robot me-1"></i> AI: ${escapeHtml(a.ai_status || 'Pending')}
+                                    </span>
+                                    <span class="badge bg-dark text-info border border-info" style="font-size: 0.68rem;">
+                                        ${escapeHtml(a.ai_confidence || 'N/A')}
+                                    </span>
+                                </div>
+                                ${a.ai_assessment ? `<div class="text-muted small text-truncate" title="${escapeHtml(a.ai_assessment)}"><i class="fa-solid fa-brain text-info me-1"></i> ${escapeHtml(a.ai_assessment)}</div>` : '<small class="text-muted fst-italic">AI assessment pending</small>'}
+                            </div>
+
+                            <button class="btn btn-sm btn-outline-primary w-100" onclick="openReviewModalById('${escapeHtml(a.alert_id)}')">
                                 <i class="fa-solid fa-microscope me-1"></i> Side-by-Side Review
                             </button>
                         </div>
@@ -161,9 +249,10 @@
         }
     }
 
-    let currentAlertForModal = null;
+    function openReviewModalById(alertId) {
+        const alert = alertsMap[alertId];
+        if (!alert) return;
 
-    function openReviewModal(alert) {
         currentAlertForModal = alert;
         activeReviewAlertId = alert.alert_id;
         document.getElementById('modalCaseId').innerText = alert.case_id;
@@ -173,12 +262,57 @@
         document.getElementById('modalScore').innerText = `${alert.similarity_score}%`;
         document.getElementById('modalModel').innerText = alert.model_version;
         document.getElementById('modalRefImg').src = alert.reference_url;
-        
+
+        // Featherless AI Assessment Fields
+        updateModalAiFields(alert);
+
         // Show CCTV biometric face crop directly beside registered case photo
         switchModalCctvView('face');
 
         document.getElementById('officerNotes').value = alert.review_notes || '';
         reviewModal.show();
+    }
+
+    function updateModalAiFields(alert) {
+        const badge = document.getElementById('modalAiStatusBadge');
+        badge.className = `badge px-2 py-1 ms-1 fs-6 ${getAiBadgeClass(alert.ai_status)}`;
+        badge.innerText = alert.ai_status || 'Pending';
+
+        document.getElementById('modalAiConfidence').innerText = alert.ai_confidence || 'N/A';
+        document.getElementById('modalAiReasoning').innerText = alert.ai_assessment || 'No forensic reasoning available yet.';
+        document.getElementById('modalAiRecommendation').innerText = alert.ai_recommendation || 'Proceed with officer visual verification.';
+    }
+
+    async function reverifyCurrentAlertAi() {
+        if (!activeReviewAlertId) return;
+
+        const btn = document.getElementById('btnReverifyAi');
+        const icon = document.getElementById('reverifyIcon');
+        btn.disabled = true;
+        icon.className = 'fa-solid fa-spinner fa-spin me-1';
+
+        try {
+            const res = await fetch(`/api/alerts/${activeReviewAlertId}/ai-verify`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (currentAlertForModal && currentAlertForModal.alert_id === activeReviewAlertId) {
+                    currentAlertForModal.ai_status = data.ai_status;
+                    currentAlertForModal.ai_confidence = data.ai_confidence;
+                    currentAlertForModal.ai_assessment = data.ai_assessment;
+                    currentAlertForModal.ai_recommendation = data.ai_recommendation;
+                    updateModalAiFields(currentAlertForModal);
+                }
+                loadAlerts(); // Refresh cards in background
+            }
+        } catch (e) {
+            console.error("AI Re-verify error:", e);
+        } finally {
+            btn.disabled = false;
+            icon.className = 'fa-solid fa-arrows-rotate me-1';
+        }
     }
 
     function switchModalCctvView(view) {

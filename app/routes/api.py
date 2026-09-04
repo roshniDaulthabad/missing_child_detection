@@ -182,6 +182,10 @@ def get_alerts():
             "track_id": a.track_id,
             "similarity_score": round(a.similarity_score * 100, 1),
             "status": a.status,
+            "ai_status": a.ai_status or "Pending",
+            "ai_confidence": a.ai_confidence or "N/A",
+            "ai_assessment": a.ai_assessment or "",
+            "ai_recommendation": a.ai_recommendation or "",
             "model_version": a.model_version,
             "frame_url": f"/api/files/frame/{a.alert_id}",
             "face_url": f"/api/files/face/{a.alert_id}",
@@ -206,6 +210,22 @@ def review_alert_endpoint(alert_id):
             "message": f"Alert reviewed: {action}",
             "alert_id": alert.alert_id,
             "new_status": alert.status
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route("/alerts/<alert_id>/ai-verify", methods=["POST"])
+def reverify_alert_ai_endpoint(alert_id):
+    """Triggers or re-runs Featherless.ai verification on an existing alert."""
+    try:
+        alert = alert_service.verify_alert_with_ai(alert_id)
+        return jsonify({
+            "message": "Featherless AI verification completed",
+            "alert_id": alert.alert_id,
+            "ai_status": alert.ai_status,
+            "ai_confidence": alert.ai_confidence,
+            "ai_assessment": alert.ai_assessment,
+            "ai_recommendation": alert.ai_recommendation
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

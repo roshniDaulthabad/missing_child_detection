@@ -1,12 +1,34 @@
 import time
 from app.database.models import db, PotentialMatchAlert, MissingChild, CaseStatusHistory, AuditLog
 from app.services.case_service import case_service
+from app.services.featherless_service import featherless_service
 
 class AlertService:
     """Manages potential match alerts and officer verification workflows."""
 
     @staticmethod
     def create_alert(alert_data: dict) -> PotentialMatchAlert:
+        # 1. Fetch child record for context-aware AI verification
+        case_id = alert_data.get("case_id")
+        child = MissingChild.query.filter_by(case_id=case_id).first() if case_id else None
+        
+        child_dict = {}
+        if child:
+            child_dict = {
+                "case_id": child.case_id,
+                "child_name": child.child_name,
+                "age": child.age,
+                "gender": child.gender,
+                "date_missing": child.date_missing,
+                "last_known_location": child.last_known_location,
+                "physical_description": child.physical_description or "N/A",
+                "identifying_characteristics": child.identifying_characteristics or "N/A",
+                "priority": child.priority or "High"
+            }
+
+        # 2. Run Featherless.ai verification assessment
+        ai_assessment = featherless_service.assess_potential_match(child_dict, alert_data)
+
         alert = PotentialMatchAlert(
             alert_id=alert_data["alert_id"],
             case_id=alert_data["case_id"],
@@ -18,21 +40,76 @@ class AlertService:
             face_crop_path=alert_data["face_crop_path"],
             reference_photo_path=alert_data.get("reference_photo_path", ""),
             model_version=alert_data.get("model_version", "adaface-iresnet-cpu-v1"),
-            status="New"
+            status="New",
+            ai_status=ai_assessment.get("status", "Pending"),
+            ai_confidence=ai_assessment.get("confidence", "N/A"),
+            ai_assessment=ai_assessment.get("reasoning", ""),
+            ai_recommendation=ai_assessment.get("recommendation", "")
         )
         db.session.add(alert)
         
-        # Log audit trail
+        # Log audit trail with Featherless verification status
         audit = AuditLog(
-            actor="AI_DETECTION_PIPELINE",
+            actor="FEATHERLESS_AI_VERIFIER",
             action="ALERT_GENERATED",
             resource_type="PotentialMatchAlert",
             resource_id=alert.alert_id,
-            details=f"Potential match detected for Case {alert.case_id} on {alert.camera_id} with score {alert.similarity_score:.3f}"
+            details=f"Alert generated for Case {alert.case_id} on {alert.camera_id} (Score: {alert.similarity_score:.3f}). Featherless AI Status: {alert.ai_status} ({alert.ai_confidence} Confidence)."
         )
         db.session.add(audit)
         db.session.commit()
         return alert
+
+    @staticmethod
+    def verify_alert_with_ai(alert_id: str) -> PotentialMatchAlert:
+        """Runs or re-runs Featherless.ai verification on an existing alert."""
+        alert = PotentialMatchAlert.query.filter_by(alert_id=alert_id).first()
+        if not alert:
+            raise ValueError(f"Alert {alert_id} not found")
+
+        child = MissingChild.query.filter_by(case_id=alert.case_id).first()
+        child_dict = {}
+        if child:
+            child_dict = {
+                "case_id": child.case_id,
+                "child_name": child.child_name,
+                "age": child.age,
+                "gender": child.gender,
+                "date_missing": child.date_missing,
+                "last_known_location": child.last_known_location,
+                "physical_description": child.physical_description or "N/A",
+                "identifying_characteristics": child.identifying_characteristics or "N/A",
+                "priority": child.priority or "High"
+            }
+
+        alert_data = {
+            "alert_id": alert.alert_id,
+            "case_id": alert.case_id,
+            "camera_id": alert.camera_id,
+            "camera_location": alert.camera_location,
+            "track_id": alert.track_id,
+            "similarity_score": alert.similarity_score,
+            "model_version": alert.model_version,
+            "timestamp": alert.created_at.strftime("%Y-%m-%d %H:%M:%S") if alert.created_at else "Recent"
+        }
+
+        ai_assessment = featherless_service.assess_potential_match(child_dict, alert_data)
+        alert.ai_status = ai_assessment.get("status", alert.ai_status)
+        alert.ai_confidence = ai_assessment.get("confidence", alert.ai_confidence)
+        alert.ai_assessment = ai_assessment.get("reasoning", alert.ai_assessment)
+        alert.ai_recommendation = ai_assessment.get("recommendation", alert.ai_recommendation)
+
+        audit = AuditLog(
+            actor="FEATHERLESS_AI_VERIFIER",
+            action="AI_REVERIFICATION",
+            resource_type="PotentialMatchAlert",
+            resource_id=alert.alert_id,
+            details=f"Featherless AI re-evaluated Alert {alert.alert_id}: {alert.ai_status} ({alert.ai_confidence} Confidence)."
+        )
+        db.session.add(audit)
+        db.session.commit()
+        return alert
+
 
     @staticmethod
     def review_alert(alert_id: str, action: str, officer_name: str, notes: str = "") -> PotentialMatchAlert:
