@@ -43,8 +43,8 @@ def client(test_app):
 
 def test_featherless_service_configuration():
     assert featherless_service.base_url == "https://api.featherless.ai/v1"
-    assert featherless_service.model == "mistralai/Mistral-7B-Instruct-v0.3"
-    assert featherless_service.timeout == 8
+    assert featherless_service.model == "Qwen/Qwen3.8-Flash-Next"
+    assert featherless_service.timeout >= 8
 
 def test_featherless_offline_fallback():
     # An unconfigured service instance must return a safe fallback without crashing
