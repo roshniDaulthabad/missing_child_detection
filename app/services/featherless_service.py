@@ -121,9 +121,14 @@ class FeatherlessService:
             f"- AdaFace Biometric Face Similarity: {score_pct:.1f}%\n"
             f"- CCTV Person Track ID: #{track_id}\n\n"
             f"TASK:\n"
-            f"Assess if this sighting plausibly matches the missing child based on biometric similarity, location proximity, and child profile.\n"
-            f"Return ONLY a JSON object with exactly these 4 keys:\n"
-            f'- "status": choose one ("Likely Match", "Possible Match", "Inconclusive / Needs Review")\n'
+            f"Assess if this sighting matches the missing child based on biometric similarity, location proximity, and child profile.\n"
+            f"Provide an automated verification decision (verdict):\n"
+            f"- If biometric similarity is high (>=70%) and case details align, verdict is 'Confirm'.\n"
+            f"- If biometric similarity is low or profile clearly conflicts, verdict is 'Reject'.\n"
+            f"- If inconclusive or requires immediate manual field inspection, verdict is 'Under Review'.\n\n"
+            f"Return ONLY a JSON object with exactly these keys:\n"
+            f'- "verdict": choose one ("Confirm", "Reject", "Under Review")\n'
+            f'- "status": choose one ("Confirmed by Featherless AI", "Rejected by Featherless AI", "Under Review (Featherless AI)")\n'
             f'- "confidence": choose one ("High", "Medium", "Low")\n'
             f'- "reasoning": 2-3 concise sentences analyzing the biometric match, location, and case details.\n'
             f'- "recommendation": 1-2 actionable operational steps for investigating officers.'
@@ -136,13 +141,27 @@ class FeatherlessService:
         if json_match:
             try:
                 parsed = json.loads(json_match.group(0))
-                status = parsed.get("status", "Possible Match")
+                verdict = parsed.get("verdict", "")
+                status = parsed.get("status", "")
                 confidence = parsed.get("confidence", "Medium")
                 reasoning = parsed.get("reasoning", "AI biometric evaluation completed.")
                 recommendation = parsed.get("recommendation", "Officer side-by-side visual review advised.")
 
+                v_lower = str(verdict).lower()
+                s_lower = str(status).lower()
+                if "confirm" in v_lower or "confirm" in s_lower or "likely" in s_lower:
+                    normalized_status = "Confirmed by Featherless AI"
+                    norm_verdict = "Confirm"
+                elif "reject" in v_lower or "reject" in s_lower or "low" in s_lower:
+                    normalized_status = "Rejected by Featherless AI"
+                    norm_verdict = "Reject"
+                else:
+                    normalized_status = "Under Review (Featherless AI)"
+                    norm_verdict = "Under Review"
+
                 return {
-                    "status": str(status),
+                    "verdict": norm_verdict,
+                    "status": normalized_status,
                     "confidence": str(confidence),
                     "reasoning": str(reasoning),
                     "recommendation": str(recommendation)
@@ -151,10 +170,22 @@ class FeatherlessService:
                 pass
 
         # Fallback if no valid JSON object
-        status = "Likely Match" if score_pct >= 85.0 else ("Possible Match" if score_pct >= 70.0 else "Inconclusive / Needs Review")
-        conf = "High" if score_pct >= 85.0 else ("Medium" if score_pct >= 70.0 else "Low")
+        if score_pct >= 70.0:
+            norm_status = "Confirmed by Featherless AI"
+            norm_verdict = "Confirm"
+            conf = "High" if score_pct >= 85.0 else "Medium"
+        elif score_pct < 50.0:
+            norm_status = "Rejected by Featherless AI"
+            norm_verdict = "Reject"
+            conf = "Low"
+        else:
+            norm_status = "Under Review (Featherless AI)"
+            norm_verdict = "Under Review"
+            conf = "Medium"
+
         return {
-            "status": status,
+            "verdict": norm_verdict,
+            "status": norm_status,
             "confidence": conf,
             "reasoning": clean_text[:280] if len(clean_text) > 20 else f"Biometric face similarity calculated at {score_pct:.1f}%.",
             "recommendation": "Verify CCTV face crop against reference photo before dispatching officers."
@@ -162,11 +193,13 @@ class FeatherlessService:
 
     def _build_fallback(self, reason: str, score_pct: float) -> Dict[str, str]:
         conf = "High" if score_pct >= 85.0 else ("Medium" if score_pct >= 70.0 else "Low")
-        status = "Possible Match" if score_pct >= 70.0 else "Inconclusive / Needs Review"
+        status = "Under Review (AI Fallback)"
         return {
-            "status": f"{status} (Offline Fallback)",
+            "verdict": "Under Review",
+            "status": status,
             "confidence": conf,
             "reasoning": f"Featherless AI service unavailable ({reason}). Primary AdaFace biometric score: {score_pct:.1f}%.",
             "recommendation": "Perform manual visual verification using the side-by-side review tool."
         }
-featherless_service = FeatherlessService()
+featherless_service = FeatherlessService()
+

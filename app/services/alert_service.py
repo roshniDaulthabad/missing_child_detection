@@ -28,6 +28,7 @@ class AlertService:
 
         # 2. Run Featherless.ai verification assessment
         ai_assessment = featherless_service.assess_potential_match(child_dict, alert_data)
+        automated_status = ai_assessment.get("status", "Under Review (Featherless AI)")
 
         alert = PotentialMatchAlert(
             alert_id=alert_data["alert_id"],
@@ -40,21 +41,31 @@ class AlertService:
             face_crop_path=alert_data["face_crop_path"],
             reference_photo_path=alert_data.get("reference_photo_path", ""),
             model_version=alert_data.get("model_version", "adaface-iresnet-cpu-v1"),
-            status="New",
-            ai_status=ai_assessment.get("status", "Pending"),
+            status=automated_status,
+            ai_status=automated_status,
             ai_confidence=ai_assessment.get("confidence", "N/A"),
             ai_assessment=ai_assessment.get("reasoning", ""),
             ai_recommendation=ai_assessment.get("recommendation", "")
         )
         db.session.add(alert)
         
+        # Automated case progression if confirmed by Featherless AI
+        if "confirm" in automated_status.lower():
+            try:
+                case_service.update_case_status(
+                    alert.case_id, "Potential Match", "Featherless AI Verifier",
+                    f"Featherless AI automatically verified match on {alert.camera_id} (Score: {alert.similarity_score*100:.1f}%). {alert.ai_assessment}"
+                )
+            except Exception as e:
+                print(f"[ALERT SERVICE] Could not update case status: {e}")
+
         # Log audit trail with Featherless verification status
         audit = AuditLog(
             actor="FEATHERLESS_AI_VERIFIER",
             action="ALERT_GENERATED",
             resource_type="PotentialMatchAlert",
             resource_id=alert.alert_id,
-            details=f"Alert generated for Case {alert.case_id} on {alert.camera_id} (Score: {alert.similarity_score:.3f}). Featherless AI Status: {alert.ai_status} ({alert.ai_confidence} Confidence)."
+            details=f"Alert generated for Case {alert.case_id} on {alert.camera_id} (Score: {alert.similarity_score:.3f}). Featherless AI Automated Status: {alert.status} ({alert.ai_confidence} Confidence)."
         )
         db.session.add(audit)
         db.session.commit()
@@ -94,21 +105,33 @@ class AlertService:
         }
 
         ai_assessment = featherless_service.assess_potential_match(child_dict, alert_data)
-        alert.ai_status = ai_assessment.get("status", alert.ai_status)
+        automated_status = ai_assessment.get("status", "Under Review (Featherless AI)")
+        alert.status = automated_status
+        alert.ai_status = automated_status
         alert.ai_confidence = ai_assessment.get("confidence", alert.ai_confidence)
         alert.ai_assessment = ai_assessment.get("reasoning", alert.ai_assessment)
         alert.ai_recommendation = ai_assessment.get("recommendation", alert.ai_recommendation)
+
+        if "confirm" in automated_status.lower():
+            try:
+                case_service.update_case_status(
+                    alert.case_id, "Potential Match", "Featherless AI Verifier",
+                    f"Featherless AI re-evaluated and confirmed match on {alert.camera_id} (Score: {alert.similarity_score*100:.1f}%)."
+                )
+            except Exception:
+                pass
 
         audit = AuditLog(
             actor="FEATHERLESS_AI_VERIFIER",
             action="AI_REVERIFICATION",
             resource_type="PotentialMatchAlert",
             resource_id=alert.alert_id,
-            details=f"Featherless AI re-evaluated Alert {alert.alert_id}: {alert.ai_status} ({alert.ai_confidence} Confidence)."
+            details=f"Featherless AI re-evaluated Alert {alert.alert_id}: {alert.status} ({alert.ai_confidence} Confidence)."
         )
         db.session.add(audit)
         db.session.commit()
         return alert
+
 
 
     @staticmethod

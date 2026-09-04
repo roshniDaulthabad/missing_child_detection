@@ -115,11 +115,14 @@ def test_alert_creation_with_featherless_integration(test_app):
         assert alert.ai_confidence is not None
         assert alert.ai_assessment is not None
         assert alert.ai_recommendation is not None
+        # Automated status check
+        assert any(term in alert.status for term in ["Featherless AI", "AI Fallback"])
 
         # Verify persisted in database
         queried = PotentialMatchAlert.query.filter_by(alert_id="ALT-FEATHERLESS-001").first()
         assert queried is not None
         assert queried.ai_status == alert.ai_status
+        assert queried.status == alert.status
 
 def test_reverify_endpoint(test_app, client):
     with test_app.app_context():
