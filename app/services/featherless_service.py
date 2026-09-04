@@ -92,7 +92,7 @@ class FeatherlessService:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "User-Agent": "Hackwave-App/1.0"
+            "User-Agent": "EasyFind-App/1.0"
         }
 
         payload = {

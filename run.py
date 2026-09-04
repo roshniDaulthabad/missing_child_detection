@@ -10,7 +10,7 @@ from app.config import Config
 from app.ai.hardware import HardwareProfile
 
 if __name__ == "__main__":
-    HardwareProfile.print_cpu_training_banner("Hackwave Missing Child Detection & Welfare System")
+    HardwareProfile.print_cpu_training_banner("EasyFind Missing Child Detection & Welfare System")
     print("\n[STARTUP] Initializing CPU-First Police Welfare Server...")
     print(f"[STARTUP] Operation Mode:   {Config.OPERATION_MODE}")
     print(f"[STARTUP] YOLO Model:       {Config.YOLO_MODEL_PATH}")

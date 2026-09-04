@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Hackwave — Missing Child Detection & Welfare System{% endblock %}</title>
+    <title>{% block title %}EasyFind — Missing Child Detection & Welfare System{% endblock %}</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome Icons -->
@@ -12,30 +12,50 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
-            --bg-dark: #0b0f19;
-            --card-bg: #151d30;
-            --card-border: #1e293b;
-            --primary-accent: #3b82f6;
+            --bg-body: #f8fafc;
+            --card-bg: #ffffff;
+            --card-border: #e2e8f0;
+            --card-hover-border: #cbd5e1;
+            --primary-accent: #2563eb;
+            --primary-hover: #1d4ed8;
             --alert-accent: #ef4444;
             --success-accent: #10b981;
-            --text-light: #f8fafc;
-            --text-muted: #94a3b8;
+            --warning-accent: #f59e0b;
+            --info-accent: #0284c7;
+            --text-main: #0f172a;
+            --text-body: #334155;
+            --text-muted: #64748b;
+            --sidebar-bg: #ffffff;
+            --sidebar-border: #e2e8f0;
+            --navbar-bg: #ffffff;
+            --navbar-border: #e2e8f0;
+            --input-bg: #ffffff;
+            --input-border: #cbd5e1;
         }
+
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-light);
+            background-color: var(--bg-body);
+            color: var(--text-body);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow-x: hidden;
         }
+
+        /* Headings */
+        h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+            color: var(--text-main);
+        }
+
+        /* Sidebar Navigation */
         .sidebar {
             width: 260px;
-            background-color: #0d1322;
-            border-right: 1px solid var(--card-border);
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--sidebar-border);
             min-height: 100vh;
             position: fixed;
             top: 0;
             left: 0;
             z-index: 1000;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.03);
         }
         .sidebar .nav-link {
             color: var(--text-muted);
@@ -46,63 +66,234 @@
             display: flex;
             align-items: center;
             transition: all 0.2s;
-        }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active {
-            background-color: #1e293b;
-            color: #60a5fa;
             font-weight: 500;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #f1f5f9;
+            color: var(--primary-accent);
+        }
+        .sidebar .nav-link.active {
+            background-color: #eff6ff;
+            color: var(--primary-accent);
+            font-weight: 600;
         }
         .sidebar .nav-link i {
             width: 24px;
             margin-right: 10px;
         }
+
+        /* Main Content & Navbar */
         .main-content {
             margin-left: 260px;
             padding: 1.5rem 2rem;
+            background-color: var(--bg-body);
+            min-height: calc(100vh - 60px);
         }
         .navbar-custom {
-            background-color: var(--card-bg);
-            border-bottom: 1px solid var(--card-border);
+            background-color: var(--navbar-bg);
+            border-bottom: 1px solid var(--navbar-border);
             padding: 0.75rem 1.5rem;
             margin-left: 260px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
         }
-        .stat-card {
+        .navbar-custom .text-light {
+            color: var(--text-main) !important;
+        }
+
+        /* Cards & Stat Cards */
+        .stat-card, .card {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 8px;
             padding: 1.25rem;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            color: var(--text-body);
         }
         .stat-card:hover {
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
         }
+
+        /* Badges */
         .badge-potential {
-            background-color: #f59e0b;
-            color: #000;
+            background-color: #fef3c7;
+            color: #92400e;
             font-weight: 600;
+            border: 1px solid #fde68a;
         }
+
+        /* Tables */
         .table-custom {
-            color: var(--text-light);
+            color: var(--text-body);
             border-color: var(--card-border);
         }
         .table-custom th {
-            background-color: #182239;
-            color: var(--text-muted);
+            background-color: #f1f5f9;
+            color: #475569;
             border-bottom: 2px solid var(--card-border);
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
         .table-custom td {
-            background-color: var(--card-bg);
+            background-color: #ffffff;
             border-color: var(--card-border);
             vertical-align: middle;
+            color: var(--text-body);
         }
+        .table-custom tbody tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        /* Buttons */
         .btn-police {
-            background-color: #2563eb;
+            background-color: var(--primary-accent);
             color: #fff;
             border: none;
+            font-weight: 500;
         }
         .btn-police:hover {
-            background-color: #1d4ed8;
+            background-color: var(--primary-hover);
             color: #fff;
+        }
+
+        /* Form Controls */
+        .form-control, .form-select {
+            background-color: var(--input-bg) !important;
+            border: 1px solid var(--input-border) !important;
+            color: var(--text-main) !important;
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+            background-color: #ffffff !important;
+            color: var(--text-main) !important;
+        }
+        .form-control::placeholder {
+            color: #94a3b8 !important;
+        }
+        .form-label {
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .input-group-text {
+            background-color: #f1f5f9 !important;
+            border-color: var(--input-border) !important;
+            color: var(--text-muted) !important;
+        }
+
+        /* Modals */
+        .modal-content {
+            background-color: #ffffff !important;
+            border: 1px solid var(--card-border) !important;
+            color: var(--text-body) !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+        }
+        .modal-header {
+            background-color: #f8fafc !important;
+            border-bottom: 1px solid var(--card-border) !important;
+            color: var(--text-main) !important;
+        }
+        .modal-footer {
+            background-color: #f8fafc !important;
+            border-top: 1px solid var(--card-border) !important;
+        }
+        .btn-close-white {
+            filter: none !important;
+        }
+
+        /* Dropdowns */
+        .dropdown-menu-dark {
+            background-color: #ffffff !important;
+            border: 1px solid var(--card-border) !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08) !important;
+        }
+        .dropdown-menu-dark .dropdown-item {
+            color: var(--text-body) !important;
+        }
+        .dropdown-menu-dark .dropdown-item:hover,
+        .dropdown-menu-dark .dropdown-item:focus {
+            background-color: #f1f5f9 !important;
+            color: var(--primary-accent) !important;
+        }
+        .dropdown-menu-dark .dropdown-divider {
+            border-color: var(--card-border) !important;
+        }
+
+        /* Pre and Code */
+        pre.bg-black {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+            border: 1px solid var(--card-border) !important;
+        }
+        code {
+            color: #0284c7;
+        }
+
+        /* Text Overrides for Light Mode */
+        .text-white:not(.btn):not(.badge):not(#camHeaderLabel):not(#streamModeBadge) {
+            color: var(--text-main) !important;
+        }
+        .text-light:not(.btn):not(.badge) {
+            color: var(--text-body) !important;
+        }
+        .border-secondary {
+            border-color: var(--card-border) !important;
+        }
+
+        /* Dark Utility Overrides for Light Theme Components */
+        div.bg-black:not(.position-relative):not(:has(#liveFeedImg)):not(:has(#liveAnalysisPreview)):not(:has(#processedVideoPlayer)),
+        div.bg-dark:not(:has(#liveFeedImg)):not(:has(#liveAnalysisPreview)):not(:has(#processedVideoPlayer)) {
+            background-color: #f8fafc !important;
+        }
+        div.card.bg-black, div.card.bg-dark {
+            background-color: #ffffff !important;
+            border-color: var(--card-border) !important;
+        }
+        div.card-header.bg-dark {
+            background-color: #f8fafc !important;
+            border-color: var(--card-border) !important;
+        }
+
+        /* Video / CCTV monitor screen stays dark for CCTV display clarity */
+        div.position-relative.bg-black {
+            background-color: #020617 !important;
+            border: 1px solid var(--card-border);
+        }
+
+        /* Alert and info boxes */
+        .alert-secondary.bg-dark {
+            background-color: #f1f5f9 !important;
+            border-color: var(--card-border) !important;
+            color: var(--text-body) !important;
+        }
+        .badge.bg-dark.text-info {
+            background-color: #e0f2fe !important;
+            color: #0369a1 !important;
+            border-color: #bae6fd !important;
+        }
+        .badge.bg-dark.border-secondary {
+            background-color: #f1f5f9 !important;
+            color: var(--text-muted) !important;
+            border-color: var(--card-border) !important;
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
     {% block extra_head %}{% endblock %}
@@ -113,7 +304,7 @@
         <div class="d-flex align-items-center mb-4 px-2">
             <i class="fa-solid fa-shield-halved text-primary fs-3 me-2"></i>
             <div>
-                <div class="fw-bold text-white fs-6">HACKWAVE</div>
+                <div class="fw-bold text-dark fs-6">EASYFIND</div>
                 <div class="small text-muted" style="font-size: 0.7rem;">POLICE & WELFARE AI</div>
             </div>
         </div>
@@ -172,7 +363,7 @@
         <hr class="border-secondary my-3">
         <div class="px-2 small text-muted">
             <span class="badge bg-success mb-1">CPU-ONLY ACTIVE</span>
-            <div>Mode: <strong class="text-white">{{ mode }}</strong></div>
+            <div>Mode: <strong class="text-dark">{{ mode }}</strong></div>
             <div id="liveTelemetry">CPU: --% | RAM: --GB</div>
         </div>
     </div>
@@ -181,16 +372,16 @@
     <nav class="navbar-custom d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center">
             <span class="badge bg-danger me-2">AUTHORIZED ACCESS ONLY</span>
-            <span class="text-light fw-medium">INTELLIGENT MISSING CHILD DETECTION SYSTEM</span>
+            <span class="text-dark fw-medium">INTELLIGENT MISSING CHILD DETECTION SYSTEM</span>
         </div>
         <div class="d-flex align-items-center">
             <span class="badge bg-primary me-3"><i class="fa-solid fa-microchip me-1"></i> PyTorch CPU</span>
             <div class="dropdown">
-                <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
+                <a href="#" class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
                     <i class="fa-solid fa-user-shield me-2 text-primary fs-5"></i>
                     <span>Insp. R. Sharma (Badge: DL-8821)</span>
                 </a>
-                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
                     <li><a class="dropdown-item" href="/settings">System Config</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item text-danger" href="#">Secure Sign Out</a></li>
