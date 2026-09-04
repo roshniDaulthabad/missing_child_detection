@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Potential Match Alerts — Human Verification{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Potential Match Verification Portal</h4>
+        <p class="text-muted small mb-0">Authorized Biometric Review & Officer In-the-Loop Confirmation</p>
+    </div>
+    <div>
+        <span class="badge bg-warning text-dark"><i class="fa-solid fa-lock me-1"></i> Officer Decision Required</span>
+    </div>
+</div>
+
+<!-- Alerts Grid -->
+<div class="row g-3" id="alertsContainer">
+    <div class="col-12 text-center text-muted py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-2">Loading biometric potential match alerts...</div>
+    </div>
+</div>
+
+<!-- Side-by-Side Review Modal -->
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="reviewModalLabel">
+                    <i class="fa-solid fa-scale-balanced text-warning me-2"></i>Officer Biometric Verification Review
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-4">
+                    <!-- Left: Registered Child Reference -->
+                    <div class="col-md-6 border-end border-secondary">
+                        <div class="text-center mb-3">
+                            <span class="badge bg-primary px-3 py-2 fs-6">REGISTERED PRIMARY REFERENCE</span>
+                        </div>
+                        <div class="text-center bg-black p-2 rounded mb-3" style="min-height: 280px;">
+                            <img id="modalRefImg" src="" class="img-fluid rounded" style="max-height: 260px;" alt="Registered Photo">
+                        </div>
+                        <div class="stat-card">
+                            <div class="small text-muted">Case ID: <strong class="text-white" id="modalCaseId">--</strong></div>
+                            <div class="small text-muted">Child Name: <strong class="text-white" id="modalChildName">--</strong></div>
+                            <div class="small text-muted">Integrity: <span class="badge bg-success">SHA-3 Verified</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Right: CCTV Capture & Detection -->
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="badge bg-warning text-dark px-3 py-2 fs-6" id="cctvViewBadge">CCTV BIOMETRIC FACE CROP</span>
+                            <div class="btn-group btn-group-sm">
+                                <button type="button" id="btnViewFace" class="btn btn-sm btn-primary active" onclick="switchModalCctvView('face')">
+                                    <i class="fa-solid fa-user me-1"></i> Face Crop
+                                </button>
+                                <button type="button" id="btnViewFrame" class="btn btn-sm btn-outline-secondary" onclick="switchModalCctvView('frame')">
+                                    <i class="fa-solid fa-image me-1"></i> Full Frame
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-center bg-black p-2 rounded mb-3" style="min-height: 280px; display: flex; align-items: center; justify-content: center;">
+                            <img id="modalCctvImg" src="" class="img-fluid rounded" style="max-height: 250px; object-fit: contain;" alt="CCTV Detection">
+                        </div>
+                        <div class="stat-card">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted small">Similarity Score:</span>
+                                <span class="badge badge-potential fs-6" id="modalScore">--%</span>
+                            </div>
+                            <div class="small text-muted">Location: <strong class="text-white" id="modalLocation">--</strong></div>
+                            <div class="small text-muted">Track ID: <strong class="text-white" id="modalTrackId">--</strong></div>
+                            <div class="small text-muted">Model: <span class="text-info" id="modalModel">--</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Review Form -->
+                <div class="mt-4 pt-3 border-top border-secondary">
+                    <label class="form-label text-muted small">Investigating Officer Verification Notes:</label>
+                    <textarea class="form-control bg-black text-light border-secondary mb-3" id="officerNotes" rows="2" placeholder="Record visual alignment notes, clothing consistency, or dispatch instructions..."></textarea>
+                    
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-danger" onclick="submitReview('reject')">
+                            <i class="fa-solid fa-xmark me-1"></i> Reject Match
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" onclick="submitReview('investigate')">
+                            <i class="fa-solid fa-magnifying-glass me-1"></i> Escalate to Investigation
+                        </button>
+                        <button type="button" class="btn btn-success" onclick="submitReview('confirm')">
+                            <i class="fa-solid fa-check-double me-1"></i> Confirm Potential Match
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let activeReviewAlertId = null;
+    let reviewModal = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        reviewModal = new bootstrap.Modal(document.getElementById('reviewModal'));
+        loadAlerts();
+    });
+
+    async function loadAlerts() {
+        try {
+            const res = await fetch('/api/alerts');
+            const container = document.getElementById('alertsContainer');
+            if (res.ok) {
+                const alerts = await res.json();
+                if (alerts.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-12 text-center text-muted py-5">
+                            <i class="fa-solid fa-circle-check fs-1 text-success mb-3"></i>
+                            <h5>No Pending Alerts</h5>
+                            <p class="small">The surveillance network has not produced any unverified potential matches.</p>
+                            <a href="/live" class="btn btn-sm btn-police">Open Live Stream</a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = alerts.map(a => `
+                    <div class="col-md-6 col-lg-4">
+                        <div class="stat-card h-100 border-start border-4 ${a.status === 'Confirmed by Officer' ? 'border-success' : 'border-warning'}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge bg-secondary">${a.alert_id}</span>
+                                <span class="badge ${a.status === 'Confirmed by Officer' ? 'bg-success' : (a.status === 'Rejected' ? 'bg-danger' : 'badge-potential')}">
+                                    ${a.status}
+                                </span>
+                            </div>
+                            <div class="d-flex gap-2 my-3">
+                                <div class="w-50 text-center bg-black p-1 rounded">
+                                    <small class="text-muted d-block" style="font-size: 0.65rem;">CASE PHOTO</small>
+                                    <img src="${a.reference_url}" class="img-fluid rounded" style="height: 100px; object-fit: cover;">
+                                </div>
+                                <div class="w-50 text-center bg-black p-1 rounded">
+                                    <small class="text-muted d-block" style="font-size: 0.65rem;">CCTV FACE CROP</small>
+                                    <img src="${a.face_url}" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: contain;">
+                                </div>
+                            </div>
+                            <div class="small mb-1"><span class="text-muted">Child:</span> <strong class="text-white">${a.child_name || a.case_id}</strong> <small class="text-muted">(${a.case_id})</small></div>
+                            <div class="small mb-1"><span class="text-muted">Similarity:</span> <span class="fw-bold text-warning">${a.similarity_score}%</span></div>
+                            <div class="small mb-1"><span class="text-muted">Location:</span> ${a.camera_location}</div>
+                            <div class="small mb-3"><span class="text-muted">Time:</span> ${a.timestamp}</div>
+                            <button class="btn btn-sm btn-outline-primary w-100" onclick='openReviewModal(${JSON.stringify(a)})'>
+                                <i class="fa-solid fa-microscope me-1"></i> Side-by-Side Review
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            console.error("Alerts load error:", e);
+        }
+    }
+
+    let currentAlertForModal = null;
+
+    function openReviewModal(alert) {
+        currentAlertForModal = alert;
+        activeReviewAlertId = alert.alert_id;
+        document.getElementById('modalCaseId').innerText = alert.case_id;
+        document.getElementById('modalChildName').innerText = alert.child_name || alert.case_id;
+        document.getElementById('modalLocation').innerText = `${alert.camera_location} (${alert.camera_id})`;
+        document.getElementById('modalTrackId').innerText = `#${alert.track_id}`;
+        document.getElementById('modalScore').innerText = `${alert.similarity_score}%`;
+        document.getElementById('modalModel').innerText = alert.model_version;
+        document.getElementById('modalRefImg').src = alert.reference_url;
+        
+        // Show CCTV biometric face crop directly beside registered case photo
+        switchModalCctvView('face');
+
+        document.getElementById('officerNotes').value = alert.review_notes || '';
+        reviewModal.show();
+    }
+
+    function switchModalCctvView(view) {
+        if (!currentAlertForModal) return;
+        const img = document.getElementById('modalCctvImg');
+        const badge = document.getElementById('cctvViewBadge');
+        const btnFace = document.getElementById('btnViewFace');
+        const btnFrame = document.getElementById('btnViewFrame');
+        
+        if (view === 'face') {
+            img.src = currentAlertForModal.face_url;
+            img.alt = "CCTV Biometric Face Crop";
+            if (badge) badge.innerText = "CCTV BIOMETRIC FACE CROP";
+            if (btnFace) { btnFace.className = "btn btn-sm btn-primary active"; }
+            if (btnFrame) { btnFrame.className = "btn btn-sm btn-outline-secondary"; }
+        } else {
+            img.src = currentAlertForModal.frame_url;
+            img.alt = "CCTV Full Frame Observation";
+            if (badge) badge.innerText = "CCTV FULL SCENE FRAME";
+            if (btnFace) { btnFace.className = "btn btn-sm btn-outline-secondary"; }
+            if (btnFrame) { btnFrame.className = "btn btn-sm btn-primary active"; }
+        }
+    }
+
+    async function submitReview(action) {
+        if (!activeReviewAlertId) return;
+        const notes = document.getElementById('officerNotes').value;
+        const res = await fetch(`/api/alerts/${activeReviewAlertId}/review`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({action: action, officer: 'Insp. R. Sharma', notes: notes})
+        });
+        if (res.ok) {
+            reviewModal.hide();
+            loadAlerts();
+        }
+    }
+</script>
+{% endblock %}

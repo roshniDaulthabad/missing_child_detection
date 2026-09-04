@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Missing Children Database — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Missing Children Central Registry</h4>
+        <p class="text-muted small mb-0">Secure Biometric Case Management & Zero-Retraining Instant Vector Enrollment</p>
+    </div>
+    <div>
+        <button class="btn btn-police btn-sm" data-bs-toggle="modal" data-bs-target="#newCaseModal">
+            <i class="fa-solid fa-plus me-1"></i> Register New Case
+        </button>
+    </div>
+</div>
+
+<!-- Cases List -->
+<div class="stat-card">
+    <div class="table-responsive">
+        <table class="table table-custom align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Photo</th>
+                    <th>Case ID</th>
+                    <th>Child Name</th>
+                    <th>Age / Gender</th>
+                    <th>Guardian / Contact</th>
+                    <th>Date Missing</th>
+                    <th>Last Location</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="casesTableBody">
+                <tr><td colspan="10" class="text-center text-muted py-4">Loading registered missing cases...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Register New Case Modal -->
+<div class="modal fade" id="newCaseModal" tabindex="-1" aria-labelledby="newCaseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="newCaseModalLabel"><i class="fa-solid fa-child text-primary me-2"></i>Register Missing Child Case</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="newCaseForm" onsubmit="handleCaseSubmit(event)">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Case Identifier:</label>
+                            <input type="text" name="case_id" class="form-control bg-black text-light border-secondary" placeholder="MC-2026-001 (or auto-generated)">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Full Name of Child:*</label>
+                            <input type="text" name="child_name" required class="form-control bg-black text-light border-secondary" placeholder="e.g. Aarav Sharma">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Age:*</label>
+                            <input type="number" name="age" required min="1" max="18" class="form-control bg-black text-light border-secondary" value="9">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Gender:*</label>
+                            <select name="gender" class="form-select bg-black text-light border-secondary">
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small text-muted">Priority Level:</label>
+                            <select name="priority" class="form-select bg-black text-light border-secondary">
+                                <option value="Critical">Critical</option>
+                                <option value="High" selected>High</option>
+                                <option value="Medium">Medium</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Parent/Guardian Name:*</label>
+                            <input type="text" name="parent_name" required class="form-control bg-black text-light border-secondary" placeholder="Guardian Name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Guardian Contact:*</label>
+                            <input type="text" name="parent_contact" required class="form-control bg-black text-light border-secondary" placeholder="+91 98765 43210">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Date Reported Missing:*</label>
+                            <input type="date" name="date_missing" required class="form-control bg-black text-light border-secondary">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small text-muted">Last Known Location:*</label>
+                            <input type="text" name="last_known_location" required class="form-control bg-black text-light border-secondary" placeholder="Sector 4 City Garden">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Identifying Characteristics & Clothing Description:</label>
+                            <textarea name="physical_description" class="form-control bg-black text-light border-secondary" rows="2" placeholder="Blue hoodie, black jeans, birthmark on right cheek..."></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small text-muted">Clear Reference Photograph:*</label>
+                            <input type="file" name="photo" accept="image/*" required class="form-control bg-black text-light border-secondary">
+                            <div class="form-text text-muted" style="font-size: 0.75rem;">
+                                Uploading generates a 512-D normalized AdaFace embedding and AES-256 encrypted storage. <strong>Zero model retraining required.</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-police" id="btnSubmitCase">
+                        <i class="fa-solid fa-cloud-arrow-up me-1"></i> Enroll & Extract Biometrics
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let newCaseModal = null;
+    document.addEventListener("DOMContentLoaded", () => {
+        newCaseModal = new bootstrap.Modal(document.getElementById('newCaseModal'));
+        loadCases();
+    });
+
+    async function loadCases() {
+        try {
+            const res = await fetch('/api/cases');
+            if (res.ok) {
+                const cases = await res.json();
+                const tbody = document.getElementById('casesTableBody');
+                if (cases.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">No active missing children enrolled. Click "Register New Case" to enroll.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = cases.map(c => `
+                    <tr>
+                        <td>
+                            <img src="${c.photo_path}" class="rounded-circle border border-secondary" style="width: 44px; height: 44px; object-fit: cover;">
+                        </td>
+                        <td class="fw-bold text-primary">${c.case_id}</td>
+                        <td class="fw-bold text-white">${c.child_name}</td>
+                        <td>${c.age} yrs / ${c.gender}</td>
+                        <td>${c.parent_name}<br><small class="text-muted">${c.parent_contact}</small></td>
+                        <td>${c.date_missing}</td>
+                        <td>${c.last_known_location}</td>
+                        <td><span class="badge ${c.priority === 'Critical' ? 'bg-danger' : 'bg-warning text-dark'}">${c.priority}</span></td>
+                        <td><span class="badge ${c.status === 'Missing' ? 'bg-danger' : 'bg-success'}">${c.status}</span></td>
+                        <td>
+                            <a href="/timeline" class="btn btn-sm btn-outline-info"><i class="fa-solid fa-clock-rotate-left"></i></a>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } catch (e) {
+            console.error("Cases load error:", e);
+        }
+    }
+
+    async function handleCaseSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSubmitCase');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Extracting Embedding...';
+
+        const form = document.getElementById('newCaseForm');
+        const formData = new FormData(form);
+
+        try {
+            const res = await fetch('/api/cases', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                newCaseModal.hide();
+                form.reset();
+                loadCases();
+            } else {
+                alert("Error: " + (data.error || "Failed to register child"));
+            }
+        } catch (err) {
+            alert("Network error: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up me-1"></i> Enroll & Extract Biometrics';
+        }
+    }
+</script>
+{% endblock %}

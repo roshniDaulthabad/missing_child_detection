@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Case Status & Investigation — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Case Status & Investigation Lifecycle</h4>
+        <p class="text-muted small mb-0">Authorized Case State Tracking & Officer Investigation Milestones</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Case Selection & Status Form -->
+    <div class="col-md-5">
+        <div class="stat-card mb-3">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-pen-to-square text-primary me-2"></i>Update Case Status</h6>
+            <div class="mb-3">
+                <label class="form-label small text-muted">Select Missing Child Case:</label>
+                <select id="caseSelect" class="form-select bg-black text-light border-secondary" onchange="loadCaseDetails()">
+                    <option value="">-- Choose Case --</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small text-muted">New Status:</label>
+                <select id="newStatusSelect" class="form-select bg-black text-light border-secondary">
+                    <option value="Missing">Missing</option>
+                    <option value="Active Investigation">Active Investigation</option>
+                    <option value="Potential Match">Potential Match</option>
+                    <option value="Located">Located</option>
+                    <option value="Recovered">Recovered</option>
+                    <option value="Reunification Pending">Reunification Pending</option>
+                    <option value="Reunified">Reunified</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label small text-muted">Investigating Officer:</label>
+                <input type="text" id="officerNameInput" value="Insp. R. Sharma" class="form-control bg-black text-light border-secondary">
+            </div>
+            <div class="mb-3">
+                <label class="form-label small text-muted">Investigation Milestone Notes:</label>
+                <textarea id="statusNotes" rows="3" class="form-control bg-black text-light border-secondary" placeholder="Record reason for status change, witness statements, or field verification notes..."></textarea>
+            </div>
+            <button class="btn btn-police w-100" onclick="updateCaseStatus()"><i class="fa-solid fa-floppy-disk me-1"></i> Commit Status Update</button>
+        </div>
+    </div>
+
+    <!-- Case History Timeline -->
+    <div class="col-md-7">
+        <div class="stat-card">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-clock-rotate-left text-info me-2"></i>Investigation History & Chain of Custody</h6>
+            <div id="caseHistoryTimeline" class="text-muted small py-4 text-center">
+                Select a case to view complete chronological status updates.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", loadCasesDropdown);
+
+    async function loadCasesDropdown() {
+        const res = await fetch('/api/cases');
+        if (res.ok) {
+            const cases = await res.json();
+            const sel = document.getElementById('caseSelect');
+            sel.innerHTML = '<option value="">-- Choose Case --</option>' + 
+                cases.map(c => `<option value="${c.case_id}">${c.case_id} — ${c.child_name} (${c.status})</option>`).join('');
+            if (cases.length > 0) {
+                sel.value = cases[0].case_id;
+                loadCaseDetails();
+            }
+        }
+    }
+
+    async function loadCaseDetails() {
+        const caseId = document.getElementById('caseSelect').value;
+        if (!caseId) return;
+
+        const res = await fetch(`/api/cases/${caseId}`);
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('newStatusSelect').value = data.status;
+            
+            const timeline = document.getElementById('caseHistoryTimeline');
+            if (data.history.length === 0) {
+                timeline.innerHTML = '<div class="text-muted text-center">No status updates recorded yet.</div>';
+            } else {
+                timeline.innerHTML = data.history.map(h => `
+                    <div class="border-start border-3 border-primary ps-3 pb-3 position-relative">
+                        <i class="fa-solid fa-circle text-primary position-absolute" style="left: -7px; top: 0; font-size: 0.75rem;"></i>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-primary">${h.new_status}</span>
+                            <small class="text-muted">${h.timestamp}</small>
+                        </div>
+                        <div class="text-white small">Officer: <strong>${h.updated_by}</strong></div>
+                        <div class="text-muted small">${h.notes}</div>
+                    </div>
+                `).join('');
+            }
+        }
+    }
+
+    async function updateCaseStatus() {
+        const caseId = document.getElementById('caseSelect').value;
+        const newStatus = document.getElementById('newStatusSelect').value;
+        const officer = document.getElementById('officerNameInput').value;
+        const notes = document.getElementById('statusNotes').value;
+
+        if (!caseId) return alert("Select a case first");
+
+        const res = await fetch(`/api/cases/${caseId}/status`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({status: newStatus, officer: officer, notes: notes})
+        });
+
+        if (res.ok) {
+            document.getElementById('statusNotes').value = '';
+            loadCaseDetails();
+            loadCasesDropdown();
+        }
+    }
+</script>
+{% endblock %}

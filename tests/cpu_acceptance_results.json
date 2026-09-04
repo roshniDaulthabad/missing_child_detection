@@ -1,0 +1,63 @@
+{
+  "Test_1_Video_CPU": {
+    "status": "PASS",
+    "device": "CPU",
+    "avg_latency_ms": 387.24,
+    "fps": 2.58,
+    "cpu_percent": 23.1
+  },
+  "Test_2_RTSP_Stream_CPU": {
+    "status": "PASS",
+    "camera_id": "CAM-TEST-RTSP",
+    "processed_frames": 24,
+    "fps": 9.9,
+    "latency_ms": 100.6,
+    "cpu_percent": 75.8
+  },
+  "Test_3_Child_Enrollment_CPU": {
+    "status": "PASS",
+    "case_id": "MC-CPU-TEST-1788512438",
+    "enrollment_time_ms": 373.19,
+    "sha3_hash": "7c3e00120656b3a6..."
+  },
+  "Test_4_Tracking_CPU": {
+    "status": "PASS",
+    "latency_ms": 132.75,
+    "fps": 7.53
+  },
+  "Test_5_Face_Embedding_CPU": {
+    "status": "PASS",
+    "dimension": 512,
+    "l2_norm": 1.0,
+    "latency_ms": 60.58
+  },
+  "Test_6_Potential_Match_CPU": {
+    "status": "PASS",
+    "matched_case_id": "MC-FORENSIC-1788502226",
+    "similarity_score": 89.5,
+    "latency_ms": 0.56
+  },
+  "Test_7_Generate_Alert": {
+    "status": "PASS",
+    "alert_id": "ALT-TEST-1788512439",
+    "case_id": "MC-CPU-TEST-1788512438",
+    "similarity": 89.5
+  },
+  "Test_8_Movement_History": {
+    "status": "PASS",
+    "case_id": "MC-CPU-TEST-1788512438",
+    "total_waypoints": 1
+  },
+  "Test_9_Update_Case_Status": {
+    "status": "PASS",
+    "alert_status": "Confirmed by Officer",
+    "case_status": "Potential Match"
+  },
+  "Test_10_Recovery_Welfare": {
+    "status": "PASS",
+    "case_id": "MC-CPU-TEST-1788512438",
+    "guardian_verified": true,
+    "reunification_status": "Reunified",
+    "final_case_status": "Reunified"
+  }
+}

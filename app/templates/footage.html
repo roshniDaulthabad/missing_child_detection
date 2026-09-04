@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}Footage Forensic Analysis — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">CCTV Footage Forensic Analysis</h4>
+        <p class="text-muted small mb-0">Offline Video Person Tracking, Biometric AdaFace Matching & Keyframe Review</p>
+    </div>
+    <div id="jobStatusBadgeCont">
+        <span class="badge bg-secondary" id="jobStatusBadge">STANDBY — NO ACTIVE JOB</span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Upload & Parameters -->
+    <div class="col-lg-4">
+        <!-- Upload Card -->
+        <div class="stat-card mb-3">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-cloud-arrow-up text-primary me-2"></i>Upload Surveillance Video</h6>
+            <form id="forensicUploadForm" onsubmit="startForensicAnalysis(event)">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Select Video File (.mp4, .avi, .mkv, .mov):*</label>
+                    <input type="file" id="videoFileInput" accept=".mp4,.avi,.mkv,.mov,.webm" required class="form-control bg-black text-light border-secondary">
+                    <div class="form-text text-muted" style="font-size: 0.72rem;">
+                        Real video will be analyzed frame-by-frame on CPU using YOLO11 and AdaFace.
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Source Camera Identifier:*</label>
+                    <input type="text" id="cameraSourceInput" value="CAM-FOOTAGE-01" required class="form-control bg-black text-light border-secondary">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Physical Location / Source Context:*</label>
+                    <input type="text" id="locationDescInput" value="Platform 1 Security Camera (West Terminal)" required class="form-control bg-black text-light border-secondary">
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" id="btnStartAnalysis" class="btn btn-police py-2">
+                        <i class="fa-solid fa-play me-1"></i> Start Forensic AI Analysis
+                    </button>
+                    <button type="button" id="btnCancelAnalysis" class="btn btn-outline-danger btn-sm d-none" onclick="cancelForensicAnalysis()">
+                        <i class="fa-solid fa-ban me-1"></i> Stop / Cancel Analysis
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Forensic Processing Telemetry -->
+        <div class="stat-card">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-chart-line text-info me-2"></i>Analysis Progress & Metrics</h6>
+            
+            <!-- Progress Bar -->
+            <div class="mb-3">
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span id="progressLabel">Progress: Standby</span>
+                    <span class="fw-bold text-white" id="progressPercentText">0.0%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div id="forensicProgressBar" class="progress-bar bg-primary progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="list-group list-group-flush bg-transparent small">
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-1 border-secondary">
+                    <span class="text-muted">Frame Progress:</span>
+                    <span class="text-white" id="statFrameCount">0 / 0</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-1 border-secondary">
+                    <span class="text-muted">Processing Throughput:</span>
+                    <span class="text-success fw-bold" id="statFps">0.0 FPS</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-1 border-secondary">
+                    <span class="text-muted">Frame Latency:</span>
+                    <span class="text-info fw-bold" id="statLatency">0.0 ms</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-1 border-secondary">
+                    <span class="text-muted">Unique Track IDs:</span>
+                    <span class="text-warning fw-bold" id="statUniqueTracks">0</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-1 border-secondary">
+                    <span class="text-muted">Potential Matches Found:</span>
+                    <span class="badge bg-danger fs-6" id="statPotentialMatches">0</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-1 border-secondary">
+                    <span class="text-muted">Elapsed Time:</span>
+                    <span class="text-white" id="statElapsedTime">0.0 s</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Video Playback & Live Inspection -->
+    <div class="col-lg-8">
+        <!-- Playback / Live Preview Window -->
+        <div class="stat-card mb-3 p-2">
+            <div class="d-flex justify-content-between align-items-center mb-2 px-2">
+                <h6 class="fw-bold text-white mb-0">
+                    <i class="fa-solid fa-video text-warning me-2"></i>
+                    <span id="previewHeaderTitle">Forensic Playback & Live Analysis View</span>
+                </h6>
+                <div id="playbackModeBadge">
+                    <span class="badge bg-dark border border-secondary text-muted">Awaiting Footage Upload</span>
+                </div>
+            </div>
+
+            <!-- Viewport Container -->
+            <div class="position-relative bg-black rounded overflow-hidden text-center" style="min-height: 400px; max-height: 480px; display: flex; align-items: center; justify-content: center;">
+                <!-- Live Preview Image (active during processing) -->
+                <img id="liveAnalysisPreview" src="" class="img-fluid w-100 h-100 d-none" style="object-fit: contain;" alt="Live Analysis Preview">
+                
+                <!-- Completed Video Player (active when completed) -->
+                <video id="processedVideoPlayer" controls class="w-100 h-100 d-none" style="max-height: 480px;"></video>
+
+                <!-- Standby Placeholder -->
+                <div id="standbyPlaceholder" class="p-5 text-muted">
+                    <i class="fa-solid fa-film fs-1 text-secondary mb-3"></i>
+                    <h5>No Footage Under Analysis</h5>
+                    <p class="small">Upload an authorized CCTV video clip on the left to initiate frame-by-frame person tracking and biometric matching.</p>
+                </div>
+            </div>
+
+            <!-- Download Button (Visible on Completion) -->
+            <div id="downloadActionContainer" class="d-none mt-2 px-2 d-flex justify-content-between align-items-center">
+                <span class="small text-success"><i class="fa-solid fa-check-circle me-1"></i> Analysis complete. Processed video with annotated tracks ready.</span>
+                <a id="btnDownloadProcessed" href="#" download class="btn btn-sm btn-outline-success">
+                    <i class="fa-solid fa-download me-1"></i> Download Annotated Video
+                </a>
+            </div>
+        </div>
+
+        <!-- Detected Persons & Track Review Table -->
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-white mb-0">
+                    <i class="fa-solid fa-users-viewfinder text-primary me-2"></i>Detected Persons & Keyframe Observations
+                </h6>
+                <span class="badge bg-secondary" id="keyframeCountBadge">0 Keyframes</span>
+            </div>
+            <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                <table class="table table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Crop</th>
+                            <th>Timestamp</th>
+                            <th>Track ID</th>
+                            <th>Face Quality</th>
+                            <th>Identification Status</th>
+                            <th>Officer Review</th>
+                        </tr>
+                    </thead>
+                    <tbody id="keyframesTableBody">
+                        <tr><td colspan="6" class="text-center text-muted py-3">No observations recorded yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Keyframe Zoom Modal -->
+<div class="modal fade" id="keyframeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="keyframeModalTitle"><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i>Keyframe Inspection</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalKeyframeImg" src="" class="img-fluid rounded border border-secondary mb-3" style="max-height: 350px;">
+                <div class="stat-card text-start">
+                    <div class="small text-muted mb-1">Observation Time: <strong class="text-white" id="modalKfTime">--</strong></div>
+                    <div class="small text-muted mb-1">Track Identifier: <strong class="text-white" id="modalKfTrack">--</strong></div>
+                    <div class="small text-muted mb-1">Biometric Quality: <strong class="text-white" id="modalKfQuality">--</strong></div>
+                    <div class="small text-muted" id="modalKfMatchDesc">--</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let activeJobId = null;
+    let pollInterval = null;
+    let keyframeModal = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        keyframeModal = new bootstrap.Modal(document.getElementById('keyframeModal'));
+    });
+
+    async function startForensicAnalysis(e) {
+        e.preventDefault();
+        const fileInput = document.getElementById('videoFileInput');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert("Please select a video file to analyze");
+            return;
+        }
+
+        const btn = document.getElementById('btnStartAnalysis');
+        const btnCancel = document.getElementById('btnCancelAnalysis');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Uploading Video...';
+
+        const formData = new FormData();
+        formData.append("video", fileInput.files[0]);
+        formData.append("camera_id", document.getElementById('cameraSourceInput').value);
+        formData.append("location", document.getElementById('locationDescInput').value);
+
+        try {
+            const res = await fetch('/api/footage/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (res.ok) {
+                activeJobId = data.job_id;
+                
+                // Switch UI to processing mode
+                btn.classList.add('d-none');
+                btnCancel.classList.remove('d-none');
+                document.getElementById('standbyPlaceholder').classList.add('d-none');
+                document.getElementById('processedVideoPlayer').classList.add('d-none');
+                document.getElementById('liveAnalysisPreview').classList.remove('d-none');
+                document.getElementById('downloadActionContainer').classList.add('d-none');
+                
+                document.getElementById('jobStatusBadge').className = "badge bg-warning text-dark";
+                document.getElementById('jobStatusBadge').innerText = "ANALYZING FOOTAGE — IN PROGRESS";
+                document.getElementById('playbackModeBadge').innerHTML = '<span class="badge bg-danger"><i class="fa-solid fa-circle fa-beat me-1"></i> LIVE FORENSIC DECODING</span>';
+
+                // Start polling status
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(pollForensicStatus, 1500);
+            } else {
+                alert("Upload failed: " + (data.error || "Server rejected video"));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Start Forensic AI Analysis';
+            }
+        } catch (err) {
+            alert("Network error during upload: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Start Forensic AI Analysis';
+        }
+    }
+
+    async function cancelForensicAnalysis() {
+        if (!activeJobId) return;
+        if (confirm("Are you sure you want to stop this forensic video analysis?")) {
+            await fetch(`/api/footage/cancel/${activeJobId}`, {method: 'POST'});
+        }
+    }
+
+    async function pollForensicStatus() {
+        if (!activeJobId) return;
+
+        try {
+            const res = await fetch(`/api/footage/status/${activeJobId}`);
+            if (res.ok) {
+                const data = await res.json();
+
+                // Update progress bar
+                const pct = data.progress_percent || 0.0;
+                document.getElementById('forensicProgressBar').style.width = `${pct}%`;
+                document.getElementById('progressPercentText').innerText = `${pct.toFixed(1)}%`;
+                document.getElementById('progressLabel').innerText = `Status: ${data.status.toUpperCase()}`;
+
+                // Update metrics
+                document.getElementById('statFrameCount').innerText = `${data.current_frame} / ${data.total_frames}`;
+                document.getElementById('statFps').innerText = `${data.processing_fps} FPS`;
+                document.getElementById('statLatency').innerText = `${data.latency_ms} ms`;
+                document.getElementById('statUniqueTracks').innerText = data.unique_tracks_count;
+                document.getElementById('statPotentialMatches').innerText = data.potential_matches_count;
+                document.getElementById('statElapsedTime').innerText = `${data.elapsed_seconds} s`;
+
+                // Update live preview image with cache buster
+                if (data.status === "processing") {
+                    document.getElementById('liveAnalysisPreview').src = `/api/footage/preview/${activeJobId}?t=${Date.now()}`;
+                }
+
+                // Render Keyframes Table
+                renderKeyframes(data.keyframes);
+
+                // Handle completion or cancellation
+                if (data.status === "completed" || data.status === "cancelled" || data.status === "error") {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+
+                    document.getElementById('btnStartAnalysis').classList.remove('d-none');
+                    document.getElementById('btnStartAnalysis').disabled = false;
+                    document.getElementById('btnStartAnalysis').innerHTML = '<i class="fa-solid fa-play me-1"></i> Start Another Analysis';
+                    document.getElementById('btnCancelAnalysis').classList.add('d-none');
+
+                    if (data.status === "completed") {
+                        document.getElementById('jobStatusBadge').className = "badge bg-success";
+                        document.getElementById('jobStatusBadge').innerText = "FORENSIC ANALYSIS COMPLETE";
+                        document.getElementById('playbackModeBadge').innerHTML = '<span class="badge bg-success"><i class="fa-solid fa-circle-check me-1"></i> ANNOTATED VIDEO READY</span>';
+
+                        // Show completed video player
+                        if (data.has_output_video) {
+                            const player = document.getElementById('processedVideoPlayer');
+                            player.src = `/api/footage/video/${activeJobId}`;
+                            player.classList.remove('d-none');
+                            document.getElementById('liveAnalysisPreview').classList.add('d-none');
+                            
+                            const dlBtn = document.getElementById('btnDownloadProcessed');
+                            dlBtn.href = `/api/footage/video/${activeJobId}`;
+                            document.getElementById('downloadActionContainer').classList.remove('d-none');
+                        }
+                    } else if (data.status === "cancelled") {
+                        document.getElementById('jobStatusBadge').className = "badge bg-secondary";
+                        document.getElementById('jobStatusBadge').innerText = "ANALYSIS CANCELLED";
+                    } else if (data.status === "error") {
+                        document.getElementById('jobStatusBadge').className = "badge bg-danger";
+                        document.getElementById('jobStatusBadge').innerText = "ERROR: " + (data.error_message || "Failed");
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Poll error:", e);
+        }
+    }
+
+    function renderKeyframes(keyframes) {
+        const tbody = document.getElementById('keyframesTableBody');
+        document.getElementById('keyframeCountBadge').innerText = `${keyframes ? keyframes.length : 0} Keyframes`;
+
+        if (!keyframes || keyframes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Scanning video for pedestrian appearances...</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = keyframes.slice().reverse().map(kf => `
+            <tr class="${kf.is_match ? 'table-danger' : ''}">
+                <td>
+                    <img src="${kf.thumbnail_url}" class="rounded border border-secondary cursor-pointer" style="width: 48px; height: 48px; object-fit: cover;" onclick='openKeyframeModal(${JSON.stringify(kf)})'>
+                </td>
+                <td class="small fw-bold text-white">${kf.video_timestamp}</td>
+                <td><span class="badge bg-secondary">#${kf.track_id}</span></td>
+                <td><span class="small text-info">${kf.quality}</span></td>
+                <td>
+                    ${kf.is_match ? 
+                        `<span class="badge badge-potential"><i class="fa-solid fa-triangle-exclamation me-1"></i>POTENTIAL MATCH: ${kf.matched_case} (${kf.similarity}%)</span>` : 
+                        '<span class="badge bg-dark border border-secondary text-muted">Unidentified Person</span>'}
+                </td>
+                <td>
+                    ${kf.is_match ? 
+                        '<a href="/alerts" class="btn btn-sm btn-warning py-0 px-2" style="font-size: 0.75rem;"><i class="fa-solid fa-magnifying-glass me-1"></i>Verify Alert</a>' : 
+                        `<button class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 0.75rem;" onclick='openKeyframeModal(${JSON.stringify(kf)})'>Inspect</button>`}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function openKeyframeModal(kf) {
+        document.getElementById('modalKeyframeImg').src = kf.thumbnail_url;
+        document.getElementById('modalKfTime').innerText = kf.video_timestamp;
+        document.getElementById('modalKfTrack').innerText = `#${kf.track_id}`;
+        document.getElementById('modalKfQuality').innerText = kf.quality;
+        
+        const matchDesc = document.getElementById('modalKfMatchDesc');
+        if (kf.is_match) {
+            matchDesc.innerHTML = `<span class="badge badge-potential fs-6">POTENTIAL MATCH: ${kf.matched_case} (${kf.similarity}% similarity)</span>`;
+        } else {
+            matchDesc.innerHTML = `<span class="text-muted">No missing child match above threshold</span>`;
+        }
+        keyframeModal.show();
+    }
+</script>
+{% endblock %}

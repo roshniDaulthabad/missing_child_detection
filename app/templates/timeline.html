@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Case Timeline & Audit Trail — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Case Investigation Timeline & Audit Trail</h4>
+        <p class="text-muted small mb-0">Cryptographically Hashed Chain of Custody & Officer Action History</p>
+    </div>
+    <div>
+        <span class="badge bg-secondary"><i class="fa-solid fa-shield-halved me-1"></i> SHA-3-256 Audit Sealed</span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Audit Logs & Chronology -->
+    <div class="col-12">
+        <div class="stat-card">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-list-check text-primary me-2"></i>Official Investigation Event Log</h6>
+            <div class="table-responsive">
+                <table class="table table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Actor / Officer</th>
+                            <th>Action Event</th>
+                            <th>Resource Type</th>
+                            <th>Case / Item ID</th>
+                            <th>Investigation Details</th>
+                            <th>Integrity Hash</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTableBody">
+                        <tr><td colspan="7" class="text-center text-muted py-4">Loading system audit trail...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", loadAuditLogs);
+
+    async function loadAuditLogs() {
+        const res = await fetch('/api/audit');
+        if (res.ok) {
+            const logs = await res.json();
+            const tbody = document.getElementById('auditTableBody');
+            if (logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No audit logs recorded yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = logs.map(l => `
+                <tr>
+                    <td class="small text-muted">${l.timestamp}</td>
+                    <td><strong class="text-white">${l.actor}</strong></td>
+                    <td><span class="badge bg-primary">${l.action}</span></td>
+                    <td class="small text-muted">${l.resource_type}</td>
+                    <td><span class="badge bg-secondary">${l.resource_id || 'SYSTEM'}</span></td>
+                    <td class="small text-light">${l.details}</td>
+                    <td><code class="text-info" style="font-size: 0.75rem;">${l.integrity_hash ? l.integrity_hash.slice(0, 16) + '...' : 'SYSTEM_SIG'}</code></td>
+                </tr>
+            `).join('');
+        }
+    }
+</script>
+{% endblock %}

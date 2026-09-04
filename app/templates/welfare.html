@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Recovery & Child Welfare — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Post-Location Recovery & Welfare Management</h4>
+        <p class="text-muted small mb-0">Legal Guardian Verification, Medical Referrals, Shelter & Rehabilitation Protocols</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Recovery & Welfare Form -->
+    <div class="col-lg-8">
+        <div class="stat-card">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-hand-holding-heart text-success me-2"></i>Record Child Recovery & Welfare Assessment</h6>
+            <form id="welfareForm" onsubmit="submitWelfare(event)">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Select Missing Child Case:*</label>
+                        <select id="welfareCaseSelect" required class="form-select bg-black text-light border-secondary">
+                            {% for c in cases %}
+                            <option value="{{ c.case_id }}">{{ c.case_id }} — {{ c.child_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Recovery Date & Time:*</label>
+                        <input type="datetime-local" id="recoveryDateTime" required class="form-control bg-black text-light border-secondary">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small text-muted">Physical Location of Recovery:*</label>
+                        <input type="text" id="recoveryLocation" required class="form-control bg-black text-light border-secondary" placeholder="e.g. Platform 1 Waiting Hall, Railway Station">
+                    </div>
+
+                    <!-- Guardian Verification Section -->
+                    <div class="col-12 pt-2 border-top border-secondary">
+                        <h6 class="text-primary small fw-bold mb-2"><i class="fa-solid fa-user-check me-1"></i>Guardian Identity Verification</h6>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="guardianVerifiedCheck" checked>
+                            <label class="form-check-label text-white small" for="guardianVerifiedCheck">Official Guardian Identity & Documents Verified</label>
+                        </div>
+                        <input type="text" id="guardianNotes" class="form-control bg-black text-light border-secondary" placeholder="Government Photo ID verified (Aadhaar / Passport / Birth Certificate details)...">
+                    </div>
+
+                    <!-- Medical & Psychological Assessment -->
+                    <div class="col-12 pt-2 border-top border-secondary">
+                        <h6 class="text-info small fw-bold mb-2"><i class="fa-solid fa-stethoscope me-1"></i>Medical & Psychological Referrals</h6>
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="medicalCheck">
+                                    <label class="form-check-label text-white small" for="medicalCheck">Immediate Medical Checkup Required</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="psychCheck">
+                                    <label class="form-check-label text-white small" for="psychCheck">Child Trauma / Psychological Counseling Referral</label>
+                                </div>
+                            </div>
+                        </div>
+                        <textarea id="medicalNotes" class="form-control bg-black text-light border-secondary" rows="2" placeholder="Record physical health observations, injuries, or clinical referral details..."></textarea>
+                    </div>
+
+                    <!-- Shelter & Reunification -->
+                    <div class="col-12 pt-2 border-top border-secondary">
+                        <h6 class="text-warning small fw-bold mb-2"><i class="fa-solid fa-house-chimney me-1"></i>Shelter & Reunification Status</h6>
+                        <div class="row g-3 mb-2">
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">Reunification State:*</label>
+                                <select id="reunificationStatus" class="form-select bg-black text-light border-secondary">
+                                    <option value="Reunified" selected>Reunified with Parents/Guardian</option>
+                                    <option value="Reunification Pending">Reunification In-Progress</option>
+                                    <option value="Shelter Assigned">Placed in Government Child Welfare Shelter</option>
+                                    <option value="Hospitalized">Admitted to Medical Facility</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small text-muted">Authorized Child Welfare Officer:*</label>
+                                <input type="text" id="welfareOfficer" value="Insp. R. Sharma (Child Protection Officer)" class="form-control bg-black text-light border-secondary">
+                            </div>
+                        </div>
+                        <textarea id="welfareNotes" class="form-control bg-black text-light border-secondary" rows="2" placeholder="Additional case notes, follow-up scheduling, or court reporting information..."></textarea>
+                    </div>
+
+                    <div class="col-12 mt-4">
+                        <button type="submit" class="btn btn-success w-100 py-2">
+                            <i class="fa-solid fa-clipboard-check me-1"></i> Submit Official Recovery & Welfare Record
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Welfare Checklist & Protocol Info -->
+    <div class="col-lg-4">
+        <div class="stat-card mb-3">
+            <h6 class="fw-bold text-white mb-2"><i class="fa-solid fa-book-medical text-primary me-2"></i>Legal Welfare Compliance</h6>
+            <div class="small text-muted mb-3">
+                Every located minor is legally protected under Child Protection Protocols. AI assists solely in identification; officers govern welfare.
+            </div>
+            <ul class="list-unstyled small mb-0">
+                <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Step 1: Secure Child in Safe Custody</li>
+                <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Step 2: Emergency First-Aid Check</li>
+                <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Step 3: Documented Guardian ID Verification</li>
+                <li class="mb-2"><i class="fa-solid fa-circle-check text-success me-2"></i>Step 4: Welfare Assessment Filing</li>
+                <li><i class="fa-solid fa-circle-check text-success me-2"></i>Step 5: Official Custody Handover & Case Closure</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('recoveryDateTime').value = now.toISOString().slice(0, 16);
+    });
+
+    async function submitWelfare(e) {
+        e.preventDefault();
+        const caseId = document.getElementById('welfareCaseSelect').value;
+        if (!caseId) return alert("Select a case");
+
+        const payload = {
+            recovery_date: document.getElementById('recoveryDateTime').value,
+            recovery_location: document.getElementById('recoveryLocation').value,
+            guardian_verified: document.getElementById('guardianVerifiedCheck').checked,
+            guardian_notes: document.getElementById('guardianNotes').value,
+            medical_referral: document.getElementById('medicalCheck').checked,
+            medical_notes: document.getElementById('medicalNotes').value,
+            psychological_support: document.getElementById('psychCheck').checked,
+            reunification_status: document.getElementById('reunificationStatus').value,
+            officer: document.getElementById('welfareOfficer').value,
+            follow_up_notes: document.getElementById('welfareNotes').value
+        };
+
+        const res = await fetch(`/api/welfare/${caseId}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert("Recovery & Child Welfare Record submitted successfully! Case updated.");
+            window.location.href = "/status";
+        } else {
+            const err = await res.json();
+            alert("Error: " + (err.error || "Failed to submit record"));
+        }
+    }
+</script>
+{% endblock %}

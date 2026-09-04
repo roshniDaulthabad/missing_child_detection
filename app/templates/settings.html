@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}System Settings & Camera Management — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">System Settings & Camera Management</h4>
+        <p class="text-muted small mb-0">RTSP Stream Provisioning, AI Model Checkpoints, and CPU Operational Parameters</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Camera Management -->
+    <div class="col-lg-7">
+        <div class="stat-card mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-white mb-0"><i class="fa-solid fa-video text-primary me-2"></i>Configured CCTV Camera Feeds</h6>
+                <button class="btn btn-sm btn-police" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+                    <i class="fa-solid fa-plus me-1"></i> Add Camera Node
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-custom align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Camera ID</th>
+                            <th>Name & Location</th>
+                            <th>GPS Lat/Lon</th>
+                            <th>Target FPS</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="camerasTableBody">
+                        <tr><td colspan="5" class="text-center text-muted py-3">Loading cameras...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Model Versioning & Pipeline Config -->
+    <div class="col-lg-5">
+        <div class="stat-card mb-4">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-code-branch text-info me-2"></i>Active AI Model Versioning</h6>
+            <div class="list-group list-group-flush bg-transparent small">
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Person Detector:</span>
+                    <strong class="text-white">{{ config.YOLO_VERSION }}</strong>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">YOLO Checkpoint:</span>
+                    <code class="text-info">{{ config.YOLO_MODEL_PATH }}</code>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Biometric Face Model:</span>
+                    <strong class="text-white">{{ config.FACE_MODEL_VERSION }}</strong>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Face Feature Dimension:</span>
+                    <span class="badge bg-primary">512-D L2 Normalized</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Person Re-ID Engine:</span>
+                    <strong class="text-white">{{ config.REID_MODEL_VERSION }}</strong>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Biometric Match Threshold:</span>
+                    <span class="badge badge-potential">{{ config.SIMILARITY_THRESHOLD * 100 }}%</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Hardware Mode:</span>
+                    <span class="badge bg-success">STRICT CPU ONLY</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-terminal text-warning me-2"></i>Offline ML Pipeline Commands</h6>
+            <div class="small text-muted mb-2">Execute directly via PowerShell in terminal:</div>
+            <pre class="bg-black text-light p-2 rounded small mb-1"><code>python training/yolo/train_yolo.py --epochs 5</code></pre>
+            <pre class="bg-black text-light p-2 rounded small mb-1"><code>python training/yolo/evaluate_yolo.py</code></pre>
+            <pre class="bg-black text-light p-2 rounded small"><code>python training/reid/train_reid.py</code></pre>
+        </div>
+    </div>
+</div>
+
+<!-- Add Camera Modal -->
+<div class="modal fade" id="addCameraModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fa-solid fa-video text-primary me-2"></i>Provision Authorized CCTV Camera</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addCamForm" onsubmit="handleAddCamera(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Camera ID (e.g. CAM-05):</label>
+                        <input type="text" id="newCamId" required class="form-control bg-black text-light border-secondary">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Camera Name:</label>
+                        <input type="text" id="newCamName" required class="form-control bg-black text-light border-secondary">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Physical Location Description:</label>
+                        <input type="text" id="newCamLoc" required class="form-control bg-black text-light border-secondary">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Latitude:</label>
+                            <input type="number" step="any" id="newCamLat" value="28.6139" class="form-control bg-black text-light border-secondary">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small text-muted">Longitude:</label>
+                            <input type="number" step="any" id="newCamLon" value="77.2090" class="form-control bg-black text-light border-secondary">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Server-Side RTSP Stream URL:</label>
+                        <input type="text" id="newCamRtsp" placeholder="rtsp://admin:pass@192.168.1.100:554/h264" class="form-control bg-black text-light border-secondary">
+                        <div class="form-text text-muted" style="font-size: 0.75rem;">
+                            RTSP credentials are encrypted with AES-256 and never sent to browser clients.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-police">Save Camera</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let addCameraModal = null;
+    document.addEventListener("DOMContentLoaded", () => {
+        addCameraModal = new bootstrap.Modal(document.getElementById('addCameraModal'));
+        loadCameras();
+    });
+
+    async function loadCameras() {
+        const res = await fetch('/api/cameras');
+        if (res.ok) {
+            const cams = await res.json();
+            document.getElementById('camerasTableBody').innerHTML = cams.map(c => `
+                <tr>
+                    <td class="fw-bold text-primary">${c.camera_id}</td>
+                    <td><strong class="text-white">${c.name}</strong><br><small class="text-muted">${c.location}</small></td>
+                    <td class="small text-muted">${c.latitude.toFixed(4)}, ${c.longitude.toFixed(4)}</td>
+                    <td>${c.fps} FPS</td>
+                    <td><span class="badge bg-success">${c.status}</span></td>
+                </tr>
+            `).join('');
+        }
+    }
+
+    async function handleAddCamera(e) {
+        e.preventDefault();
+        const payload = {
+            camera_id: document.getElementById('newCamId').value,
+            name: document.getElementById('newCamName').value,
+            location: document.getElementById('newCamLoc').value,
+            latitude: document.getElementById('newCamLat').value,
+            longitude: document.getElementById('newCamLon').value,
+            rtsp_url: document.getElementById('newCamRtsp').value
+        };
+        const res = await fetch('/api/cameras', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            addCameraModal.hide();
+            document.getElementById('addCamForm').reset();
+            loadCameras();
+        }
+    }
+</script>
+{% endblock %}

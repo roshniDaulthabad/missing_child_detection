@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Live CCTV Streams — Hackwave AI{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Live Authorized CCTV Processing</h4>
+        <p class="text-muted small mb-0">Real-Time YOLO11 Multi-Object Tracking & AdaFace Biometric Search on CPU</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-success btn-sm" id="btnStartStream" onclick="startStream()"><i class="fa-solid fa-play me-1"></i> Start Stream Worker</button>
+        <button class="btn btn-danger btn-sm" id="btnStopStream" onclick="stopStream()"><i class="fa-solid fa-stop me-1"></i> Stop Worker</button>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Main Video Player -->
+    <div class="col-lg-8">
+        <div class="stat-card p-2">
+            <div class="position-relative bg-black rounded overflow-hidden" style="min-height: 480px;">
+                <img id="liveFeedImg" src="/api/stream/video_feed/CAM-01" class="w-100 h-100" style="object-fit: contain;" alt="CCTV Stream Feed">
+                <!-- Live overlay indicator -->
+                <div class="position-absolute top-0 start-0 m-3 d-flex align-items-center">
+                    <span class="badge bg-danger me-2"><i class="fa-solid fa-circle fa-beat me-1"></i> LIVE CCTV</span>
+                    <span class="badge bg-dark bg-opacity-75 text-white" id="camHeaderLabel">CAM-01: Main Gate</span>
+                </div>
+                <div class="position-absolute bottom-0 end-0 m-3">
+                    <span class="badge bg-dark bg-opacity-75 text-success" id="streamFpsBadge">-- FPS</span>
+                </div>
+            </div>
+            <!-- Stream Controls / Info -->
+            <div class="d-flex justify-content-between align-items-center mt-3 px-2">
+                <div>
+                    <span class="text-muted small">Active Camera:</span>
+                    <strong class="text-white ms-1" id="activeCamName">CAM-01 (Sector 4 Main Gate)</strong>
+                </div>
+                <div>
+                    <span class="badge bg-primary me-2">Track Engine: BoT-SORT</span>
+                    <span class="badge bg-info text-dark">Face Engine: AdaFace</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Stream Telemetry & Camera Select -->
+    <div class="col-lg-4">
+        <!-- Telemetry Panel -->
+        <div class="stat-card mb-3">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-gauge text-primary me-2"></i>CPU Stream Telemetry</h6>
+            <div class="list-group list-group-flush bg-transparent">
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Stream Status:</span>
+                    <span class="badge bg-success" id="streamStatusBadge">RUNNING</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Inference FPS:</span>
+                    <span class="fw-bold text-success" id="streamFps">-- FPS</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Inference Latency:</span>
+                    <span class="fw-bold text-info" id="streamLatency">-- ms</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Tracked Persons in Frame:</span>
+                    <span class="fw-bold text-warning" id="streamTracks">--</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Total Processed Frames:</span>
+                    <span class="text-white" id="streamTotalFrames">--</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Host CPU Utilization:</span>
+                    <span class="text-warning" id="streamCpu">-- %</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Authorized Cameras Selector -->
+        <div class="stat-card">
+            <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-network-wired text-info me-2"></i>Authorized CCTV Nodes</h6>
+            <div class="d-grid gap-2">
+                {% for cam in cameras %}
+                <button class="btn btn-outline-secondary text-start d-flex justify-content-between align-items-center py-2" 
+                        onclick="selectCamera('{{ cam.camera_id }}', '{{ cam.name }}', '{{ cam.location }}')">
+                    <div>
+                        <div class="fw-bold text-white">{{ cam.camera_id }}: {{ cam.name }}</div>
+                        <div class="small text-muted">{{ cam.location }}</div>
+                    </div>
+                    <span class="badge bg-success">Online</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let activeCameraId = "CAM-01";
+
+    async function selectCamera(camId, name, location) {
+        activeCameraId = camId;
+        document.getElementById('camHeaderLabel').innerText = `${camId}: ${name}`;
+        document.getElementById('activeCamName').innerText = `${camId} (${location})`;
+        document.getElementById('liveFeedImg').src = `/api/stream/video_feed/${camId}?t=${Date.now()}`;
+    }
+
+    async function startStream() {
+        await fetch('/api/stream/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({camera_id: activeCameraId, source: 'demo'})
+        });
+        document.getElementById('liveFeedImg').src = `/api/stream/video_feed/${activeCameraId}?t=${Date.now()}`;
+    }
+
+    async function stopStream() {
+        await fetch('/api/stream/stop', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({camera_id: activeCameraId})
+        });
+    }
+
+    async function updateStreamTelemetry() {
+        try {
+            const res = await fetch(`/api/stream/status?camera_id=${activeCameraId}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('streamFps').innerText = `${data.fps} FPS`;
+                document.getElementById('streamFpsBadge').innerText = `${data.fps} FPS`;
+                document.getElementById('streamLatency').innerText = `${data.latency_ms} ms`;
+                document.getElementById('streamTracks').innerText = data.active_tracks;
+                document.getElementById('streamTotalFrames').innerText = data.total_frames_processed;
+                document.getElementById('streamCpu').innerText = `${data.cpu_percent}%`;
+                
+                const statusBadge = document.getElementById('streamStatusBadge');
+                if (data.is_running) {
+                    statusBadge.className = 'badge bg-success';
+                    statusBadge.innerText = 'PROCESSING';
+                } else {
+                    statusBadge.className = 'badge bg-secondary';
+                    statusBadge.innerText = 'STOPPED';
+                }
+            }
+        } catch (e) {
+            console.error("Stream telemetry error:", e);
+        }
+    }
+    setInterval(updateStreamTelemetry, 2500);
+    updateStreamTelemetry();
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+# Large AI Model Weights & Checkpoints
+*.pt
+*.pth
+*.torchscript
+*.onnx
+
+# Datasets & Training Runs
+datasets/
+runs/
+
+# Snapshots, Keyframes & Uploaded/Processed Media
+data/snapshots/
+data/keyframes/
+data/processed/
+data/uploads/
+data/encrypted/
+*.mp4
+*.avi
+*.mkv
+*.mov
+
+# Python Bytecode & Test Caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Databases & Environment
+data/*.db
+data/*.sqlite3
+.env
+.venv/
+env/
+venv/
+.vscode/
+.idea/
+
