@@ -25,13 +25,15 @@
                         <tr>
                             <th>Camera ID</th>
                             <th>Name & Location</th>
+                            <th>Stream Source</th>
                             <th>GPS Lat/Lon</th>
                             <th>Target FPS</th>
                             <th>Status</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="camerasTableBody">
-                        <tr><td colspan="5" class="text-center text-muted py-3">Loading cameras...</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-3">Loading cameras...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -132,11 +134,43 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Camera RTSP Modal -->
+<div class="modal fade" id="editRtspModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fa-solid fa-video text-info me-2"></i>Configure RTSP Stream for <span id="editRtspCamId">CAM-01</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Server-Side RTSP Stream URL:</label>
+                    <input type="text" id="editRtspUrlInput" placeholder="rtsp://admin:pass@192.168.1.100:554/live" class="form-control bg-black text-light border-secondary font-monospace">
+                    <div class="form-text text-muted small mt-1">
+                        Leave blank to reset camera to Demo Simulation fallback. Credentials are protected via AES-256-GCM.
+                    </div>
+                </div>
+                <div id="editRtspFeedback" class="alert d-none py-2 px-3 small mb-0" role="alert"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-info btn-sm" id="btnEditValidate" onclick="validateModalRtsp()">
+                    <i class="fa-solid fa-satellite-dish me-1"></i> Test Stream
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-police btn-sm" onclick="saveModalRtsp()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
     let addCameraModal = null;
+    let editRtspModal = null;
+    let editingCameraId = null;
+
     document.addEventListener("DOMContentLoaded", () => {
         addCameraModal = new bootstrap.Modal(document.getElementById('addCameraModal'));
         loadCameras();
@@ -150,11 +184,85 @@
                 <tr>
                     <td class="fw-bold text-primary">${c.camera_id}</td>
                     <td><strong class="text-white">${c.name}</strong><br><small class="text-muted">${c.location}</small></td>
+                    <td>
+                        <span class="badge ${c.has_rtsp ? 'bg-info text-dark' : 'bg-secondary'} mb-1">${c.has_rtsp ? 'RTSP Configured' : 'Demo Fallback'}</span>
+                        ${c.masked_rtsp ? `<br><code class="text-muted" style="font-size: 0.72rem;">${c.masked_rtsp}</code>` : ''}
+                    </td>
                     <td class="small text-muted">${c.latitude.toFixed(4)}, ${c.longitude.toFixed(4)}</td>
                     <td>${c.fps} FPS</td>
                     <td><span class="badge bg-success">${c.status}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-info" onclick="openEditRtspModal('${c.camera_id}', '${c.rtsp_url || ''}')">
+                            <i class="fa-solid fa-gear me-1"></i> Configure RTSP
+                        </button>
+                    </td>
                 </tr>
             `).join('');
+        }
+    }
+
+    function openEditRtspModal(camId, rtspUrl) {
+        editingCameraId = camId;
+        document.getElementById('editRtspCamId').innerText = camId;
+        document.getElementById('editRtspUrlInput').value = rtspUrl || '';
+        document.getElementById('editRtspFeedback').className = 'alert d-none';
+        if (!editRtspModal) {
+            editRtspModal = new bootstrap.Modal(document.getElementById('editRtspModal'));
+        }
+        editRtspModal.show();
+    }
+
+    async function validateModalRtsp() {
+        const url = document.getElementById('editRtspUrlInput').value.trim();
+        const alertBox = document.getElementById('editRtspFeedback');
+        const btn = document.getElementById('btnEditValidate');
+        if (!url) {
+            alertBox.className = 'alert alert-warning py-2 px-3 small mb-0';
+            alertBox.innerHTML = 'Enter an RTSP URL to test.';
+            return;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Probing...';
+        try {
+            const res = await fetch('/api/stream/validate_rtsp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rtsp_url: url})
+            });
+            const data = await res.json();
+            if (res.ok && data.valid && data.reachable) {
+                alertBox.className = 'alert alert-success py-2 px-3 small mb-0';
+                alertBox.innerHTML = `<i class="fa-solid fa-circle-check text-success me-1"></i> ${data.message}`;
+            } else if (data.valid && !data.reachable) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small mb-0';
+                alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i> ${data.message}`;
+            } else {
+                alertBox.className = 'alert alert-danger py-2 px-3 small mb-0';
+                alertBox.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger me-1"></i> ${data.message}`;
+            }
+        } catch (e) {
+            alertBox.className = 'alert alert-danger py-2 px-3 small mb-0';
+            alertBox.innerHTML = e.message;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-satellite-dish me-1"></i> Test Stream';
+        }
+    }
+
+    async function saveModalRtsp() {
+        const url = document.getElementById('editRtspUrlInput').value.trim();
+        try {
+            const res = await fetch(`/api/cameras/${editingCameraId}/rtsp`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rtsp_url: url})
+            });
+            if (res.ok) {
+                editRtspModal.hide();
+                loadCameras();
+            }
+        } catch (e) {
+            console.error("Save RTSP error:", e);
         }
     }
 

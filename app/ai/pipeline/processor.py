@@ -31,6 +31,14 @@ class StreamWorker:
         self.thread: Optional[threading.Thread] = None
         self.lock = threading.Lock()
         
+        # Source classification and health tracking
+        is_net_stream = str(self.source).startswith(("rtsp://", "rtsps://", "http://", "https://"))
+        self.source_type = "rtsp" if is_net_stream else ("file" if os.path.exists(str(self.source)) else "demo")
+        self.stream_status = "idle"  # idle, connecting, online, fallback_demo, stopped, error
+        self.is_fallback = False
+        self.stream_error: Optional[str] = None
+        self.consecutive_read_failures = 0
+        
         self.current_frame_annotated: Optional[np.ndarray] = None
         self.latest_alert: Optional[dict] = None
         self.alerts_generated: List[dict] = []
@@ -44,12 +52,14 @@ class StreamWorker:
     def start(self):
         if not self.is_running:
             self.is_running = True
+            self.stream_status = "connecting"
             self.thread = threading.Thread(target=self._process_loop, daemon=True)
             self.thread.start()
             print(f"[STREAM WORKER] Started processing stream for {self.camera_id} ({self.source})")
 
     def stop(self):
         self.is_running = False
+        self.stream_status = "stopped"
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=2.0)
         print(f"[STREAM WORKER] Stopped stream {self.camera_id}")
@@ -92,39 +102,132 @@ class StreamWorker:
 
         # CCTV timestamp and camera OSD
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        cv2.putText(frame, f"{self.camera_id} [{self.camera_location}] - {ts} [LIVE]",
-                    (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+        status_tag = "[DEMO FALLBACK]" if self.is_fallback else "[LIVE]"
+        tag_color = (0, 165, 255) if self.is_fallback else (0, 255, 255)
+        cv2.putText(frame, f"{self.camera_id} [{self.camera_location}] - {ts} {status_tag}",
+                    (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.7, tag_color, 2)
         return frame
 
     def _process_loop(self):
         cap = None
         use_synth = False
+        source_str = str(self.source)
 
-        if os.path.exists(self.source):
-            cap = cv2.VideoCapture(self.source)
-        elif self.source.startswith("rtsp://") or self.source.startswith("http://"):
-            cap = cv2.VideoCapture(self.source)
+        if os.path.exists(source_str):
+            try:
+                cap = cv2.VideoCapture(source_str)
+                if not cap.isOpened():
+                    use_synth = True
+                    self.is_fallback = True
+                    self.stream_status = "fallback_demo"
+                    self.stream_error = "Could not open video file; using synthetic fallback."
+                else:
+                    self.stream_status = "online"
+                    self.is_fallback = False
+            except Exception as e:
+                use_synth = True
+                self.is_fallback = True
+                self.stream_status = "fallback_demo"
+                self.stream_error = str(e)
+        elif source_str.startswith(("rtsp://", "rtsps://", "http://", "https://")):
+            try:
+                import socket
+                from urllib.parse import urlparse
+                parsed = urlparse(source_str)
+                hostname = parsed.hostname
+                port = parsed.port or (554 if parsed.scheme.lower() in ("rtsp", "rtsps") else 80)
+                
+                host_reachable = False
+                if hostname:
+                    try:
+                        sock = socket.create_connection((hostname, port), timeout=1.5)
+                        sock.close()
+                        host_reachable = True
+                    except Exception as e:
+                        print(f"[STREAM WORKER] {self.camera_id}: Host {hostname}:{port} unreachable ({e}). Immediate fallback to demo.")
+                        host_reachable = False
+
+                if not host_reachable:
+                    use_synth = True
+                    self.is_fallback = True
+                    self.stream_status = "fallback_demo"
+                    self.stream_error = f"RTSP host {hostname}:{port} unreachable. Demo fallback active."
+                else:
+                    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+                    cap = cv2.VideoCapture(source_str, cv2.CAP_FFMPEG)
+                    if not cap.isOpened():
+                        cap = cv2.VideoCapture(source_str)
+
+                    if cap is None or not cap.isOpened():
+                        use_synth = True
+                        self.is_fallback = True
+                        self.stream_status = "fallback_demo"
+                        self.stream_error = "RTSP camera stream handshake rejected. Active synthetic fallback."
+                        print(f"[STREAM WORKER] {self.camera_id}: RTSP handshake failed, using synthetic fallback.")
+                    else:
+                        self.stream_status = "online"
+                        self.is_fallback = False
+                        self.stream_error = None
+                        print(f"[STREAM WORKER] {self.camera_id}: Connected to RTSP stream.")
+            except Exception as e:
+                use_synth = True
+                self.is_fallback = True
+                self.stream_status = "fallback_demo"
+                self.stream_error = str(e)
         else:
             use_synth = True
+            self.stream_status = "online"
+            self.is_fallback = False
 
         frame_idx = 0
         while self.is_running:
             start_t = time.time()
+            frame = None
+
             if not use_synth and cap is not None and cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    # Loop video if offline/finished
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                try:
                     ret, frame = cap.read()
-                    if not ret:
-                        time.sleep(0.05)
-                        continue
+                    if not ret or frame is None:
+                        # If video file reached end, loop it
+                        if self.source_type == "file":
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                            ret, frame = cap.read()
+                        
+                        if not ret or frame is None:
+                            self.consecutive_read_failures += 1
+                            if self.consecutive_read_failures >= 5:
+                                use_synth = True
+                                self.is_fallback = True
+                                self.stream_status = "fallback_demo"
+                                self.stream_error = "Stream frame timeout; falling back to demo simulation."
+                                frame = self._generate_synthetic_cctv_frame(frame_idx)
+                            else:
+                                time.sleep(0.04)
+                                continue
+                        else:
+                            self.consecutive_read_failures = 0
+                            self.stream_status = "online"
+                            self.is_fallback = False
+                    else:
+                        self.consecutive_read_failures = 0
+                        self.stream_status = "online"
+                        self.is_fallback = False
+                except Exception as e:
+                    use_synth = True
+                    self.is_fallback = True
+                    self.stream_status = "fallback_demo"
+                    self.stream_error = str(e)
+                    frame = self._generate_synthetic_cctv_frame(frame_idx)
             else:
                 frame = self._generate_synthetic_cctv_frame(frame_idx)
                 time.sleep(0.03)  # Emulate ~30fps source
 
             frame_idx += 1
             self.total_frames += 1
+
+            if frame is not None and self.current_frame_annotated is None:
+                with self.lock:
+                    self.current_frame_annotated = frame.copy()
 
             # 1. Update Tracking on CPU
             tracked = self.tracker.update(frame)
@@ -246,6 +349,11 @@ class StreamWorker:
         status.update({
             "camera_id": self.camera_id,
             "camera_location": self.camera_location,
+            "source": self.source,
+            "source_type": self.source_type,
+            "stream_status": self.stream_status,
+            "is_fallback": self.is_fallback,
+            "stream_error": self.stream_error,
             "is_running": self.is_running,
             "active_tracks": self.active_tracks_count,
             "alerts_count": len(self.alerts_generated),

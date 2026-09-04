@@ -14,17 +14,19 @@
 </div>
 
 <div class="row g-3">
-    <!-- Main Video Player -->
+    <!-- Main Video Player and Stream Source Controls -->
     <div class="col-lg-8">
-        <div class="stat-card p-2">
+        <div class="stat-card p-2 mb-3">
             <div class="position-relative bg-black rounded overflow-hidden" style="min-height: 480px;">
                 <img id="liveFeedImg" src="/api/stream/video_feed/CAM-01" class="w-100 h-100" style="object-fit: contain;" alt="CCTV Stream Feed">
                 <!-- Live overlay indicator -->
-                <div class="position-absolute top-0 start-0 m-3 d-flex align-items-center">
-                    <span class="badge bg-danger me-2"><i class="fa-solid fa-circle fa-beat me-1"></i> LIVE CCTV</span>
+                <div class="position-absolute top-0 start-0 m-3 d-flex align-items-center gap-2">
+                    <span class="badge bg-danger"><i class="fa-solid fa-circle fa-beat me-1"></i> LIVE CCTV</span>
                     <span class="badge bg-dark bg-opacity-75 text-white" id="camHeaderLabel">CAM-01: Main Gate</span>
+                    <span class="badge bg-info text-dark" id="sourceOverlayBadge">DEMO / SIMULATION</span>
                 </div>
-                <div class="position-absolute bottom-0 end-0 m-3">
+                <div class="position-absolute bottom-0 end-0 m-3 d-flex align-items-center gap-2">
+                    <span class="badge bg-dark bg-opacity-75 text-white" id="streamModeBadge">SOURCE: AUTO</span>
                     <span class="badge bg-dark bg-opacity-75 text-success" id="streamFpsBadge">-- FPS</span>
                 </div>
             </div>
@@ -40,6 +42,62 @@
                 </div>
             </div>
         </div>
+
+        <!-- Authorized RTSP Stream Configuration & Feed Management Card -->
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex align-items-center">
+                    <i class="fa-solid fa-satellite-dish text-info fs-5 me-2"></i>
+                    <div>
+                        <h6 class="fw-bold text-white mb-0">Authorized Camera Input & Stream Source</h6>
+                        <small class="text-muted">Configure RTSP stream URL or switch to Demo Simulation fallback</small>
+                    </div>
+                </div>
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="streamSourceMode" id="modeRtsp" value="rtsp" autocomplete="off" checked onchange="toggleSourceMode()">
+                    <label class="btn btn-outline-info" for="modeRtsp"><i class="fa-solid fa-video me-1"></i> RTSP Camera</label>
+
+                    <input type="radio" class="btn-check" name="streamSourceMode" id="modeDemo" value="demo" autocomplete="off" onchange="toggleSourceMode()">
+                    <label class="btn btn-outline-secondary" for="modeDemo"><i class="fa-solid fa-flask me-1"></i> Demo Fallback</label>
+                </div>
+            </div>
+
+            <!-- RTSP Stream URL Configuration Form -->
+            <div id="rtspConfigContainer">
+                <div class="mb-2">
+                    <label class="form-label small text-muted d-flex justify-content-between">
+                        <span>Authorized RTSP Stream URL for <strong class="text-white" id="rtspCamLabel">CAM-01</strong>:</span>
+                        <span class="text-success"><i class="fa-solid fa-lock me-1"></i> AES-256-GCM Encrypted</span>
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-black border-secondary text-info"><i class="fa-solid fa-network-wired"></i></span>
+                        <input type="text" id="rtspUrlInput" class="form-control bg-black text-light border-secondary font-monospace" 
+                               placeholder="rtsp://admin:password@192.168.1.100:554/stream1">
+                        <button class="btn btn-outline-info" id="btnValidateRtsp" onclick="validateRtspUrl()">
+                            <i class="fa-solid fa-plug-circle-check me-1"></i> Test Connection
+                        </button>
+                        <button class="btn btn-outline-secondary" id="btnSaveRtsp" onclick="saveCameraRtsp()">
+                            <i class="fa-solid fa-floppy-disk me-1"></i> Save URL
+                        </button>
+                    </div>
+                    <div class="d-flex justify-content-between small text-muted mt-1" style="font-size: 0.78rem;">
+                        <span>Supports <code>rtsp://</code>, <code>rtsps://</code>, <code>http://</code> (H.264 / H.265 / MJPEG)</span>
+                        <span id="savedRtspHint" class="text-info"></span>
+                    </div>
+                </div>
+
+                <!-- Validation and status feedback alert -->
+                <div id="rtspFeedbackAlert" class="alert d-none py-2 px-3 small mb-0 mt-2" role="alert"></div>
+            </div>
+
+            <!-- Demo Mode Info Box -->
+            <div id="demoConfigContainer" class="d-none">
+                <div class="alert alert-secondary bg-dark border-secondary text-light py-2 px-3 small mb-0">
+                    <i class="fa-solid fa-info-circle text-info me-2"></i>
+                    <strong>Demo / Simulation Fallback Active:</strong> Generating synthetic 720p CCTV camera feed with continuous pedestrian tracking and periodic AdaFace biometric verification against active missing children records.
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Live Stream Telemetry & Camera Select -->
@@ -51,6 +109,14 @@
                 <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
                     <span class="text-muted">Stream Status:</span>
                     <span class="badge bg-success" id="streamStatusBadge">RUNNING</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Source Feed Type:</span>
+                    <span class="badge bg-primary" id="streamSourceBadge">DEMO SIMULATION</span>
+                </div>
+                <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
+                    <span class="text-muted">Connection Signal:</span>
+                    <span class="badge bg-success" id="streamHealthBadge">ONLINE</span>
                 </div>
                 <div class="list-group-item bg-transparent text-light d-flex justify-content-between px-0 py-2 border-secondary">
                     <span class="text-muted">Inference FPS:</span>
@@ -78,15 +144,18 @@
         <!-- Authorized Cameras Selector -->
         <div class="stat-card">
             <h6 class="fw-bold text-white mb-3"><i class="fa-solid fa-network-wired text-info me-2"></i>Authorized CCTV Nodes</h6>
-            <div class="d-grid gap-2">
+            <div class="d-grid gap-2" id="cameraNodesList">
                 {% for cam in cameras %}
-                <button class="btn btn-outline-secondary text-start d-flex justify-content-between align-items-center py-2" 
+                <button class="btn btn-outline-secondary text-start d-flex justify-content-between align-items-center py-2 camera-select-btn" 
+                        id="camBtn_{{ cam.camera_id }}"
                         onclick="selectCamera('{{ cam.camera_id }}', '{{ cam.name }}', '{{ cam.location }}')">
                     <div>
                         <div class="fw-bold text-white">{{ cam.camera_id }}: {{ cam.name }}</div>
                         <div class="small text-muted">{{ cam.location }}</div>
                     </div>
-                    <span class="badge bg-success">Online</span>
+                    <span class="badge {% if cam.rtsp_url_encrypted %}bg-info text-dark{% else %}bg-secondary{% endif %}" id="camBadge_{{ cam.camera_id }}">
+                        {% if cam.rtsp_url_encrypted %}RTSP{% else %}Demo{% endif %}
+                    </span>
                 </button>
                 {% endfor %}
             </div>
@@ -98,29 +167,220 @@
 {% block extra_scripts %}
 <script>
     let activeCameraId = "CAM-01";
+    let activeCameraName = "Main Gate CCTV";
+    let activeCameraLocation = "Sector 4 Main Gate";
+    let cameraCache = {};
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadCameraCache();
+        updateStreamTelemetry();
+        setInterval(updateStreamTelemetry, 2500);
+    });
+
+    async function loadCameraCache() {
+        try {
+            const res = await fetch('/api/cameras');
+            if (res.ok) {
+                const cams = await res.json();
+                cams.forEach(c => {
+                    cameraCache[c.camera_id] = c;
+                    const badge = document.getElementById(`camBadge_${c.camera_id}`);
+                    if (badge) {
+                        badge.className = `badge ${c.has_rtsp ? 'bg-info text-dark' : 'bg-secondary'}`;
+                        badge.innerText = c.has_rtsp ? 'RTSP' : 'Demo';
+                    }
+                });
+                applyCameraToInputs(activeCameraId);
+            }
+        } catch (e) {
+            console.error("Failed to load camera cache:", e);
+        }
+    }
+
+    function applyCameraToInputs(camId) {
+        document.getElementById('rtspCamLabel').innerText = camId;
+        const cam = cameraCache[camId];
+        const rtspInput = document.getElementById('rtspUrlInput');
+        const hint = document.getElementById('savedRtspHint');
+        const alertBox = document.getElementById('rtspFeedbackAlert');
+        alertBox.className = 'alert d-none';
+
+        if (cam && cam.has_rtsp && cam.rtsp_url) {
+            rtspInput.value = cam.rtsp_url;
+            hint.innerHTML = `<i class="fa-solid fa-check text-success me-1"></i>Saved URL: <code>${cam.masked_rtsp}</code>`;
+            document.getElementById('modeRtsp').checked = true;
+            toggleSourceMode();
+        } else {
+            rtspInput.value = '';
+            hint.innerHTML = `<span class="text-muted">No RTSP stream stored. Enter URL or use Demo Fallback.</span>`;
+            document.getElementById('modeDemo').checked = true;
+            toggleSourceMode();
+        }
+    }
+
+    function toggleSourceMode() {
+        const isRtsp = document.getElementById('modeRtsp').checked;
+        const rtspBox = document.getElementById('rtspConfigContainer');
+        const demoBox = document.getElementById('demoConfigContainer');
+        if (isRtsp) {
+            rtspBox.classList.remove('d-none');
+            demoBox.classList.add('d-none');
+        } else {
+            rtspBox.classList.add('d-none');
+            demoBox.classList.remove('d-none');
+        }
+    }
 
     async function selectCamera(camId, name, location) {
         activeCameraId = camId;
+        activeCameraName = name;
+        activeCameraLocation = location;
+        
         document.getElementById('camHeaderLabel').innerText = `${camId}: ${name}`;
         document.getElementById('activeCamName').innerText = `${camId} (${location})`;
+        
+        document.querySelectorAll('.camera-select-btn').forEach(btn => btn.classList.remove('border-info'));
+        const activeBtn = document.getElementById(`camBtn_${camId}`);
+        if (activeBtn) activeBtn.classList.add('border-info');
+
+        applyCameraToInputs(camId);
         document.getElementById('liveFeedImg').src = `/api/stream/video_feed/${camId}?t=${Date.now()}`;
+        updateStreamTelemetry();
+    }
+
+    async function validateRtspUrl() {
+        const url = document.getElementById('rtspUrlInput').value.trim();
+        const alertBox = document.getElementById('rtspFeedbackAlert');
+        const btn = document.getElementById('btnValidateRtsp');
+
+        if (!url) {
+            alertBox.className = 'alert alert-warning py-2 px-3 small mb-0 mt-2';
+            alertBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> Please enter an RTSP URL (e.g. <code>rtsp://192.168.1.100:554/stream</code>).';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Probing...';
+        alertBox.className = 'alert alert-info py-2 px-3 small mb-0 mt-2';
+        alertBox.innerHTML = '<i class="fa-solid fa-satellite-dish fa-beat me-1"></i> Testing camera reachability and stream parameters...';
+
+        try {
+            const res = await fetch('/api/stream/validate_rtsp', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rtsp_url: url})
+            });
+            const data = await res.json();
+
+            if (res.ok && data.valid && data.reachable) {
+                alertBox.className = 'alert alert-success py-2 px-3 small mb-0 mt-2';
+                alertBox.innerHTML = `<i class="fa-solid fa-circle-check text-success me-2"></i><strong>Verified Signal:</strong> ${data.message}`;
+            } else if (data.valid && !data.reachable) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small mb-0 mt-2';
+                alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning me-2"></i><strong>Camera Unreachable:</strong> ${data.message}`;
+            } else {
+                alertBox.className = 'alert alert-danger py-2 px-3 small mb-0 mt-2';
+                alertBox.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger me-2"></i><strong>Invalid Configuration:</strong> ${data.message || 'Stream validation failed.'}`;
+            }
+        } catch (e) {
+            alertBox.className = 'alert alert-danger py-2 px-3 small mb-0 mt-2';
+            alertBox.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger me-2"></i><strong>Network Error:</strong> ${e.message}`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-plug-circle-check me-1"></i> Test Connection';
+        }
+    }
+
+    async function saveCameraRtsp() {
+        const url = document.getElementById('rtspUrlInput').value.trim();
+        const alertBox = document.getElementById('rtspFeedbackAlert');
+        const btn = document.getElementById('btnSaveRtsp');
+
+        btn.disabled = true;
+        try {
+            const res = await fetch(`/api/cameras/${activeCameraId}/rtsp`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({rtsp_url: url})
+            });
+            const data = await res.json();
+            if (res.ok) {
+                alertBox.className = 'alert alert-success py-2 px-3 small mb-0 mt-2';
+                alertBox.innerHTML = `<i class="fa-solid fa-lock text-success me-2"></i>RTSP stream URL securely encrypted and saved for <strong>${activeCameraId}</strong>.`;
+                loadCameraCache();
+            } else {
+                alertBox.className = 'alert alert-danger py-2 px-3 small mb-0 mt-2';
+                alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>${data.error || 'Failed to save RTSP URL.'}`;
+            }
+        } catch (e) {
+            alertBox.className = 'alert alert-danger py-2 px-3 small mb-0 mt-2';
+            alertBox.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger me-2"></i>${e.message}`;
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     async function startStream() {
-        await fetch('/api/stream/start', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({camera_id: activeCameraId, source: 'demo'})
-        });
-        document.getElementById('liveFeedImg').src = `/api/stream/video_feed/${activeCameraId}?t=${Date.now()}`;
+        const isRtsp = document.getElementById('modeRtsp').checked;
+        const rtspUrl = document.getElementById('rtspUrlInput').value.trim();
+        const alertBox = document.getElementById('rtspFeedbackAlert');
+        const startBtn = document.getElementById('btnStartStream');
+
+        startBtn.disabled = true;
+        startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Starting...';
+
+        let source = "demo";
+        if (isRtsp) {
+            if (!rtspUrl) {
+                alertBox.className = 'alert alert-warning py-2 px-3 small mb-0 mt-2';
+                alertBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i> Please enter an RTSP URL or toggle to Demo Fallback.';
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Start Stream Worker';
+                return;
+            }
+            source = rtspUrl;
+        }
+
+        try {
+            const res = await fetch('/api/stream/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    camera_id: activeCameraId,
+                    source: source,
+                    location: activeCameraLocation,
+                    save_to_camera: isRtsp
+                })
+            });
+            const data = await res.json();
+            document.getElementById('liveFeedImg').src = `/api/stream/video_feed/${activeCameraId}?t=${Date.now()}`;
+            updateStreamTelemetry();
+            if (isRtsp) loadCameraCache();
+        } catch (e) {
+            console.error("Start stream failed:", e);
+        } finally {
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Start Stream Worker';
+        }
     }
 
     async function stopStream() {
-        await fetch('/api/stream/stop', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({camera_id: activeCameraId})
-        });
+        const stopBtn = document.getElementById('btnStopStream');
+        stopBtn.disabled = true;
+        stopBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i> Stopping...';
+        try {
+            await fetch('/api/stream/stop', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({camera_id: activeCameraId})
+            });
+            updateStreamTelemetry();
+        } catch (e) {
+            console.error("Stop stream failed:", e);
+        } finally {
+            stopBtn.disabled = false;
+            stopBtn.innerHTML = '<i class="fa-solid fa-stop me-1"></i> Stop Worker';
+        }
     }
 
     async function updateStreamTelemetry() {
@@ -128,12 +388,12 @@
             const res = await fetch(`/api/stream/status?camera_id=${activeCameraId}`);
             if (res.ok) {
                 const data = await res.json();
-                document.getElementById('streamFps').innerText = `${data.fps} FPS`;
-                document.getElementById('streamFpsBadge').innerText = `${data.fps} FPS`;
-                document.getElementById('streamLatency').innerText = `${data.latency_ms} ms`;
-                document.getElementById('streamTracks').innerText = data.active_tracks;
-                document.getElementById('streamTotalFrames').innerText = data.total_frames_processed;
-                document.getElementById('streamCpu').innerText = `${data.cpu_percent}%`;
+                document.getElementById('streamFps').innerText = `${data.fps || 0} FPS`;
+                document.getElementById('streamFpsBadge').innerText = `${data.fps || 0} FPS`;
+                document.getElementById('streamLatency').innerText = `${data.latency_ms || 0} ms`;
+                document.getElementById('streamTracks').innerText = data.active_tracks || 0;
+                document.getElementById('streamTotalFrames').innerText = data.total_frames_processed || 0;
+                document.getElementById('streamCpu').innerText = `${data.cpu_percent || 0}%`;
                 
                 const statusBadge = document.getElementById('streamStatusBadge');
                 if (data.is_running) {
@@ -143,12 +403,46 @@
                     statusBadge.className = 'badge bg-secondary';
                     statusBadge.innerText = 'STOPPED';
                 }
+
+                const srcBadge = document.getElementById('streamSourceBadge');
+                const overlayBadge = document.getElementById('sourceOverlayBadge');
+                const modeBadge = document.getElementById('streamModeBadge');
+
+                if (data.source_type === 'rtsp') {
+                    srcBadge.className = data.is_fallback ? 'badge bg-warning text-dark' : 'badge bg-info text-dark';
+                    srcBadge.innerText = data.is_fallback ? 'RTSP (FALLBACK)' : 'RTSP STREAM';
+                    overlayBadge.className = data.is_fallback ? 'badge bg-warning text-dark' : 'badge bg-info text-dark';
+                    overlayBadge.innerText = data.is_fallback ? 'DEMO FALLBACK ACTIVE' : 'RTSP LIVE';
+                    modeBadge.innerText = 'SOURCE: RTSP';
+                } else if (data.source_type === 'file') {
+                    srcBadge.className = 'badge bg-primary';
+                    srcBadge.innerText = 'VIDEO FILE';
+                    overlayBadge.className = 'badge bg-primary';
+                    overlayBadge.innerText = 'FILE REPLAY';
+                    modeBadge.innerText = 'SOURCE: FILE';
+                } else {
+                    srcBadge.className = 'badge bg-secondary';
+                    srcBadge.innerText = 'DEMO SIMULATION';
+                    overlayBadge.className = 'badge bg-secondary';
+                    overlayBadge.innerText = 'DEMO SIMULATION';
+                    modeBadge.innerText = 'SOURCE: DEMO';
+                }
+
+                const healthBadge = document.getElementById('streamHealthBadge');
+                if (!data.is_running) {
+                    healthBadge.className = 'badge bg-secondary';
+                    healthBadge.innerText = 'OFFLINE';
+                } else if (data.is_fallback) {
+                    healthBadge.className = 'badge bg-warning text-dark';
+                    healthBadge.innerText = 'FALLBACK DEMO';
+                } else {
+                    healthBadge.className = 'badge bg-success';
+                    healthBadge.innerText = 'ONLINE';
+                }
             }
         } catch (e) {
             console.error("Stream telemetry error:", e);
         }
     }
-    setInterval(updateStreamTelemetry, 2500);
-    updateStreamTelemetry();
 </script>
 {% endblock %}

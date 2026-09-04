@@ -1,5 +1,9 @@
 import os
 import time
+import base64
+import socket
+from urllib.parse import urlparse
+import cv2
 from flask import Blueprint, request, jsonify, Response, send_file
 from werkzeug.utils import secure_filename
 from app.config import Config, BASE_DIR
@@ -11,6 +15,7 @@ from app.services.case_service import case_service
 from app.services.alert_service import alert_service
 from app.services.movement_service import movement_service
 from app.services.welfare_service import welfare_service
+from app.security.crypto import crypto_service
 from app.ai.pipeline import worker_pool
 from app.ai.hardware import HardwareProfile
 from app.ai.pipeline.video_forensics import forensic_analyzer
@@ -230,54 +235,199 @@ def reverify_alert_ai_endpoint(alert_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@api_bp.route("/stream/validate_rtsp", methods=["POST"])
+def validate_rtsp():
+    data = request.get_json() or {}
+    rtsp_url = (data.get("rtsp_url") or "").strip()
+
+    if not rtsp_url:
+        return jsonify({"valid": False, "reachable": False, "message": "RTSP URL cannot be empty."}), 400
+
+    parsed = urlparse(rtsp_url)
+    if parsed.scheme.lower() not in ("rtsp", "rtsps", "http", "https"):
+        return jsonify({
+            "valid": False,
+            "reachable": False,
+            "message": f"Unsupported scheme '{parsed.scheme}'. Must be rtsp://, rtsps://, or http://."
+        }), 400
+
+    hostname = parsed.hostname
+    if not hostname:
+        return jsonify({
+            "valid": False,
+            "reachable": False,
+            "message": "Invalid RTSP URL: missing host or IP address."
+        }), 400
+
+    port = parsed.port or (554 if parsed.scheme.lower() in ("rtsp", "rtsps") else 80)
+
+    # 1. Fast non-blocking socket probe (2.0s timeout) to prevent server hangs
+    try:
+        sock = socket.create_connection((hostname, port), timeout=2.0)
+        sock.close()
+    except (socket.timeout, TimeoutError):
+        return jsonify({
+            "valid": True,
+            "reachable": False,
+            "message": f"Connection timed out reaching {hostname}:{port}. Verify camera IP and network routing. Demo fallback is available."
+        }), 200
+    except ConnectionRefusedError:
+        return jsonify({
+            "valid": True,
+            "reachable": False,
+            "message": f"Connection refused on port {port}. RTSP service may be down or firewall blocked. Demo fallback is available."
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "valid": True,
+            "reachable": False,
+            "message": f"Network or DNS error ({hostname}:{port}): {str(e)}. Demo fallback is available."
+        }), 200
+
+    # 2. Socket reached: brief OpenCV handshake check
+    try:
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            cap = cv2.VideoCapture(rtsp_url)
+
+        if cap.isOpened():
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                h, w = frame.shape[:2]
+                fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+                cap.release()
+                return jsonify({
+                    "valid": True,
+                    "reachable": True,
+                    "resolution": f"{w}x{h}",
+                    "fps": round(fps, 1),
+                    "message": f"RTSP stream verified! Active signal: {w}x{h} @ {fps:.1f} FPS."
+                })
+            else:
+                cap.release()
+                return jsonify({
+                    "valid": True,
+                    "reachable": True,
+                    "warning": True,
+                    "message": "Host connected, but no video frames received yet. Check stream path or credentials."
+                })
+        else:
+            return jsonify({
+                "valid": True,
+                "reachable": False,
+                "message": f"Port {port} responded, but RTSP negotiation failed. Check camera stream path or credentials."
+            })
+    except Exception as e:
+        return jsonify({
+            "valid": True,
+            "reachable": False,
+            "message": f"RTSP negotiation error: {str(e)}"
+        })
+
 @api_bp.route("/stream/start", methods=["POST"])
 def start_stream():
     payload = request.get_json() or {}
     camera_id = payload.get("camera_id", "CAM-01")
-    source = payload.get("source", "demo")
-    location = payload.get("location", "Main Gate")
+    raw_source = payload.get("source") or payload.get("rtsp_url")
+    source = raw_source.strip() if isinstance(raw_source, str) else None
+    location = payload.get("location")
+
+    cam = Camera.query.filter_by(camera_id=camera_id).first()
+    if cam:
+        if not location:
+            location = cam.location
+        if not source or source == "auto":
+            if cam.rtsp_url_encrypted:
+                try:
+                    raw_bytes = base64.b64decode(cam.rtsp_url_encrypted)
+                    decrypted_url = crypto_service.decrypt_bytes(raw_bytes).decode("utf-8")
+                    if decrypted_url:
+                        source = decrypted_url
+                except Exception:
+                    source = "demo"
+            else:
+                source = "demo"
+        elif str(source).startswith(("rtsp://", "rtsps://", "http://", "https://")):
+            try:
+                enc_bytes = crypto_service.encrypt_bytes(source.encode("utf-8"))
+                cam.rtsp_url_encrypted = base64.b64encode(enc_bytes).decode("utf-8")
+                db.session.commit()
+            except Exception as e:
+                print(f"[ERROR] Failed to persist RTSP URL: {e}")
+    else:
+        if not source:
+            source = "demo"
+        if not location:
+            location = "Main Gate"
 
     worker = worker_pool.get_or_create_worker(camera_id, source, location)
     
     # Connect alert callback to save directly to DB
     def on_alert(alert_dict):
-        # Run inside application context
         from app import app
         with app.app_context():
             alert_service.create_alert(alert_dict)
 
     worker.on_alert_callback = on_alert
     worker.start()
-    return jsonify({"message": f"Stream worker started for {camera_id}", "status": "running"})
+    return jsonify({
+        "message": f"Stream worker started for {camera_id}",
+        "status": "running",
+        "camera_id": camera_id,
+        "source": worker.source,
+        "source_type": worker.source_type,
+        "stream_status": worker.stream_status
+    })
 
 @api_bp.route("/stream/stop", methods=["POST"])
 def stop_stream():
     payload = request.get_json() or {}
     camera_id = payload.get("camera_id", "CAM-01")
     worker_pool.stop_worker(camera_id)
-    return jsonify({"message": f"Stream worker stopped for {camera_id}"})
+    return jsonify({"message": f"Stream worker stopped for {camera_id}", "status": "stopped"})
 
 @api_bp.route("/stream/status", methods=["GET"])
 def get_stream_status():
     camera_id = request.args.get("camera_id", "CAM-01")
     worker = worker_pool.workers.get(camera_id)
     if not worker:
-        return jsonify({"is_running": False, "camera_id": camera_id})
+        return jsonify({"is_running": False, "camera_id": camera_id, "stream_status": "stopped"})
     return jsonify(worker.get_status())
 
 @api_bp.route("/stream/video_feed/<camera_id>", methods=["GET"])
 def video_feed(camera_id):
     worker = worker_pool.workers.get(camera_id)
     if not worker:
-        worker = worker_pool.get_or_create_worker(camera_id, "demo")
+        cam = Camera.query.filter_by(camera_id=camera_id).first()
+        source = "demo"
+        location = cam.location if cam else "Main Gate"
+        if cam and cam.rtsp_url_encrypted:
+            try:
+                raw_bytes = base64.b64decode(cam.rtsp_url_encrypted)
+                dec = crypto_service.decrypt_bytes(raw_bytes).decode("utf-8")
+                if dec:
+                    source = dec
+            except Exception:
+                pass
+        worker = worker_pool.get_or_create_worker(camera_id, source, location)
+        
+        def on_alert(alert_dict):
+            from app import app
+            with app.app_context():
+                alert_service.create_alert(alert_dict)
+
+        worker.on_alert_callback = on_alert
         worker.start()
 
     def generate():
         while True:
-            frame_bytes = worker.get_latest_frame_bytes()
-            if frame_bytes:
-                yield (b"--frame\r\n"
-                       b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n")
+            active_worker = worker_pool.workers.get(camera_id) or worker
+            if active_worker and active_worker.is_running:
+                frame_bytes = active_worker.get_latest_frame_bytes()
+                if frame_bytes:
+                    yield (b"--frame\r\n"
+                           b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n")
             time.sleep(0.04)
 
     return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
@@ -301,6 +451,15 @@ def handle_welfare(case_id):
 def handle_cameras():
     if request.method == "POST":
         data = request.get_json() or {}
+        rtsp_encrypted = None
+        raw_rtsp = (data.get("rtsp_url") or "").strip()
+        if raw_rtsp:
+            try:
+                enc = crypto_service.encrypt_bytes(raw_rtsp.encode("utf-8"))
+                rtsp_encrypted = base64.b64encode(enc).decode("utf-8")
+            except Exception:
+                pass
+
         cam = Camera(
             camera_id=data.get("camera_id"),
             name=data.get("name"),
@@ -308,22 +467,63 @@ def handle_cameras():
             latitude=float(data.get("latitude", 28.6139)),
             longitude=float(data.get("longitude", 77.2090)),
             status="online",
-            fps=float(data.get("fps", 15.0))
+            fps=float(data.get("fps", 15.0)),
+            rtsp_url_encrypted=rtsp_encrypted
         )
         db.session.add(cam)
         db.session.commit()
         return jsonify({"message": "Camera added", "camera_id": cam.camera_id}), 201
 
     cams = Camera.query.all()
-    return jsonify([{
-        "camera_id": c.camera_id,
-        "name": c.name,
-        "location": c.location,
-        "latitude": c.latitude,
-        "longitude": c.longitude,
-        "status": c.status,
-        "fps": c.fps
-    } for c in cams])
+    results = []
+    for c in cams:
+        has_rtsp = bool(c.rtsp_url_encrypted)
+        masked_rtsp = ""
+        raw_rtsp = ""
+        if has_rtsp:
+            try:
+                raw_bytes = base64.b64decode(c.rtsp_url_encrypted)
+                raw_rtsp = crypto_service.decrypt_bytes(raw_bytes).decode("utf-8")
+                p = urlparse(raw_rtsp)
+                if p.password:
+                    masked_rtsp = raw_rtsp.replace(f":{p.password}@", ":****@")
+                else:
+                    masked_rtsp = raw_rtsp
+            except Exception:
+                masked_rtsp = "[Encrypted RTSP Configured]"
+        results.append({
+            "camera_id": c.camera_id,
+            "name": c.name,
+            "location": c.location,
+            "latitude": c.latitude,
+            "longitude": c.longitude,
+            "status": c.status,
+            "fps": c.fps,
+            "has_rtsp": has_rtsp,
+            "masked_rtsp": masked_rtsp,
+            "rtsp_url": raw_rtsp
+        })
+    return jsonify(results)
+
+@api_bp.route("/cameras/<camera_id>/rtsp", methods=["POST", "PUT"])
+def update_camera_rtsp(camera_id):
+    cam = Camera.query.filter_by(camera_id=camera_id).first()
+    if not cam:
+        return jsonify({"error": "Camera not found"}), 404
+    data = request.get_json() or {}
+    rtsp_url = (data.get("rtsp_url") or "").strip()
+    if rtsp_url:
+        try:
+            enc = crypto_service.encrypt_bytes(rtsp_url.encode("utf-8"))
+            cam.rtsp_url_encrypted = base64.b64encode(enc).decode("utf-8")
+            db.session.commit()
+            return jsonify({"message": f"RTSP URL updated for {camera_id}", "camera_id": camera_id})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    else:
+        cam.rtsp_url_encrypted = None
+        db.session.commit()
+        return jsonify({"message": f"RTSP URL cleared for {camera_id}", "camera_id": camera_id})
 
 @api_bp.route("/audit", methods=["GET"])
 def get_audit_logs():

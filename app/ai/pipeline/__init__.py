@@ -8,10 +8,18 @@ class StreamWorkerPool:
         self.workers: Dict[str, StreamWorker] = {}
 
     def get_or_create_worker(self, camera_id: str, source: str, location: str = "Authorized CCTV") -> StreamWorker:
-        if camera_id not in self.workers:
-            worker = StreamWorker(source=source, camera_id=camera_id, camera_location=location)
-            self.workers[camera_id] = worker
-        return self.workers[camera_id]
+        if camera_id in self.workers:
+            existing = self.workers[camera_id]
+            if source and existing.source != source:
+                self.stop_worker(camera_id)
+                worker = StreamWorker(source=source, camera_id=camera_id, camera_location=location)
+                self.workers[camera_id] = worker
+                return worker
+            return existing
+
+        worker = StreamWorker(source=source, camera_id=camera_id, camera_location=location)
+        self.workers[camera_id] = worker
+        return worker
 
     def stop_worker(self, camera_id: str):
         if camera_id in self.workers:
