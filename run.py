@@ -17,6 +17,7 @@ if __name__ == "__main__":
     print(f"[STARTUP] Face Model:       {Config.FACE_MODEL_PATH}")
     print(f"[STARTUP] Database:         {Config.SQLALCHEMY_DATABASE_URI}")
     print(f"[STARTUP] Demo Mode:        {Config.DEMO_MODE}")
-    print("[STARTUP] Dashboard URL:    http://127.0.0.1:5000\n")
+    port = int(os.getenv("PORT", 5000))
+    print(f"[STARTUP] Dashboard URL:    http://127.0.0.1:{port}\n")
 
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

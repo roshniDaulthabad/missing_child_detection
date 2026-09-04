@@ -1,0 +1,15 @@
+﻿services:
+  - type: web
+    name: easyfind-ai
+    runtime: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: OPERATION_MODE
+        value: BALANCED
+      - key: DEMO_MODE
+        value: "true"
+      - key: FEATHERLESS_MODEL
+        value: Qwen/Qwen3.8-Flash-Next
+      - key: FEATHERLESS_API_KEY
+        sync: false

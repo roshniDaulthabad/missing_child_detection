@@ -140,6 +140,22 @@ Open your browser at: **`http://127.0.0.1:5000`**
 - **Username:** `officer`
 - **Password:** `police123`
 
+### 5. Deploy to Render (Cloud Hosting)
+
+EasyFind includes a pre-configured `Dockerfile` and `render.yaml` for seamless cloud deployment on [Render.com](https://render.com):
+
+1. Push your repository to GitHub.
+2. Log in to [Render Dashboard](https://dashboard.render.com/) and click **New +** → **Web Service**.
+3. Connect your `hackwave` repository.
+4. Render will automatically detect the `Dockerfile`:
+   - **Environment:** `Docker`
+   - **Region:** Oregon (or nearest region)
+   - **Instance Type:** `Free`
+5. Under **Environment Variables**, add:
+   - `FEATHERLESS_API_KEY`: *(your Featherless.ai API key)*
+   - `DEMO_MODE`: `True`
+6. Click **Create Web Service**. Render will build the container with CPU-optimized PyTorch and launch the live application.
+
 ---
 
 ## Machine Learning & Training Commands
